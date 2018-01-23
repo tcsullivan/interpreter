@@ -1,10 +1,23 @@
 #include <parser.h>
 
 #include <stdbool.h>
-#include <string.h>
 #include <stdlib.h>
 
 static const char *interpreter_operators = "=(";
+
+bool strcmp(const char *a, const char *b)
+{
+	int i = 0;
+	for (; a[i] == b[i] && a[i] != '\0'; i++);
+	return a[i] == b[i];
+}
+
+bool strncmp(const char *a, const char *b, int count)
+{
+	int i = 0;
+	for (; a[i] == b[i] && i < count; i++);
+	return i == count;
+}
 
 uint8_t isalpha(char c)
 {
@@ -81,7 +94,7 @@ bool namencmp(const char *name, const char *s)
 {
 	uint16_t i;
 	for (i = 0; name[i] == s[i] && s[i] != '\0'; i++);
-	return (name[i] == '\0');
+	return (name[i] == '\0' && !isname(s[i]));
 }
 
 uint16_t spacecount(const char *s)
@@ -91,10 +104,10 @@ uint16_t spacecount(const char *s)
 	return i;
 }
 
-char *copystr(const char *s)
+char *copystr(const char *s, char end)
 {
 	uint16_t len = 0;
-	while (s[len++] != '\n');
+	while (s[len++] != end);
 	char *buf = (char *)malloc(len);
 	for (uint16_t i = 0; i < len; i++)
 		buf[i] = s[i];
@@ -109,31 +122,37 @@ char *copysubstr(const char *s, int end)
 	return buf;
 }
 
+variable *interpreter_getvar(interpreter *interp, const char *line)
+{
+	for (uint16_t i = 0; i < interp->vcount; i++) {
+		if (namencmp(interp->names[i], line))
+			return &interp->vars[i];
+	}
+
+	return 0;
+}
+
 int interpreter_doline(interpreter *interp, const char *line)
 {
 	variable *bits[16];
 	uint16_t offset = 0, boffset = 0;
 
 	// check for var/func set or usage
+	int end;
 getvar:
-	for (uint16_t i = 0; i < interp->vcount; i++) {
-		if (namencmp(interp->names[i], line)) {
-			bits[boffset++] = &interp->vars[i];
-			// get past name
-			for (uint16_t j = 0; interp->names[i][j] != '\0'; j++, offset++);
-			break;
-		}
-	}
+	for (end = 0; isname(line[end]); end++);
+	variable *var = interpreter_getvar(interp, line);
 
-	// defining new variable
-	if (boffset == 0) {
-		uint16_t end;
-		for (end = 0; isname(line[end]); end++);
+	if (var != 0) {
+		bits[boffset++] = var;
+	} else {
+		// defining new variable
 		interpreter_define_value(interp, copysubstr(line, end), 0);
 		goto getvar; // try again
 	}
 
-	// skip whitespace
+	// skip whitespace/name
+	offset += end;
 	offset += spacecount(line + offset); 
 
 	if (boffset == 0 && line[offset] != '=')
@@ -144,12 +163,10 @@ getvar:
 		// print value
 		return -99;
 	} else if (line[offset] == '=') {
-		return -23;
 		// assignment/expression
-		//offset++;
-		//offset += spacecount(line + offset);
-		//if (boffset > 0)
-		//	bits[boffset]->value = (uint32_t)copystr(line + offset);
+		offset++;
+		offset += spacecount(line + offset);
+		bits[0]->value = (uint32_t)copystr(line + offset, '\0');
 	} else if (line[offset] == '(') {
 		// function call
 		offset++;
@@ -190,9 +207,12 @@ getvar:
 			for (j = offsets[i]; line[j] != ' ' && line[j] != '\t' &&
 					line[j] != ',' && line[j] != ')'; j++);
 			j -= offsets[i];
-			interp->stack[i] = (char *)malloc(j);
-			for (uint16_t k = 0; k < j; k++)
-				((char *)interp->stack[i])[k] = line[offsets[i] + k];
+
+			variable *var = interpreter_getvar(interp, line + offsets[i]);
+			if (var != 0)
+				interp->stack[i] = copystr((char *)var->value, '\0');
+			else
+				interp->stack[i] = copysubstr(line + offsets[i], j);
 		}
 
 		((func_t)bits[0]->value)(interp->stack);
