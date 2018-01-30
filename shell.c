@@ -1,26 +1,42 @@
 #include <parser.h>
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-void test(stack_t *stack)
+void test(interpreter *it)
 {
-	printf("%s\n", stack[0]);
+	char *s = igetarg_string(it, 0);
+	if (s == 0)
+		s = "(null)";
+	printf("%s\n", s);
 }
 
-int main(int argc, char *argv[])
+void quit(interpreter *it)
+{
+	(void)it;
+	exit(0);
+}
+
+int main()
 {
 	interpreter interp;
 
-	interpreter_init(&interp);
-	interpreter_define_value(&interp, "answer", "42");
-	interpreter_define_cfunc(&interp, "test", test);
+	iinit(&interp);
+	inew_integer(&interp, "answer", 42);
+	inew_cfunc(&interp, "put", test);
+	inew_cfunc(&interp, "exit", quit);
 
-	if (argc > 1) {
-		for (int i = 1; i < argc; i++) {
-			int result = interpreter_doline(&interp, argv[i]);
-			if (result != 0)
-				printf("%d\n", result);
-		}
+
+	char *line = 0;
+	unsigned int size;
+	int result;
+	while (1) {
+		getline(&line, &size, stdin);
+		*strchr(line, '\n') = '\0';
+		result = idoline(&interp, line);
+		if (result != 0)
+			printf("Error: %d\n", result);
 	}
 
 	return 0;

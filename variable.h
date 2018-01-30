@@ -1,24 +1,20 @@
-#ifndef TOKEN_H_
-#define TOKEN_H_
+#ifndef VARIABLE_H_
+#define VARIABLE_H_
 
 #include <stdint.h>
 
 typedef struct {
-	uint16_t nameidx;
-	uint8_t type;
-	uint8_t info;
+	uint8_t used :1;
+	uint8_t fromc :1;
+	uint8_t valtype :2;
 	uint32_t value;
 } variable;
 
-#define INFO_ARGS(x)	((x) & 0x07)
-#define INFO_RET	(1 << 3)
-
-enum vartype {
-	VALUE = 0,
-	VARIABLE,
-	OPERATOR,
-	FUNCTION,
-	CFUNCTION
+enum valtype {
+	STRING = 0,
+	INTEGER,
+	FLOAT,
+	FUNC
 };
 
-#endif // TOKEN_H_
+#endif // VARIABLE_H_

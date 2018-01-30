@@ -1,225 +1,238 @@
 #include <parser.h>
 
-#include <stdbool.h>
+#include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 
-static const char *interpreter_operators = "=(";
+#define MAX_VARS  16
+#define MAX_STACK 32
 
-bool strcmp(const char *a, const char *b)
+char *strclone(const char *s)
 {
-	int i = 0;
-	for (; a[i] == b[i] && a[i] != '\0'; i++);
-	return a[i] == b[i];
+	char *clone = (char *)malloc(strlen(s));
+	strcpy(clone, s);
+	return clone;
 }
 
-bool strncmp(const char *a, const char *b, int count)
+char *strnclone(const char *s, uint32_t n)
 {
-	int i = 0;
-	for (; a[i] == b[i] && i < count; i++);
-	return i == count;
+	char *clone = (char *)malloc(n);
+	strncpy(clone, s, n);
+	return clone;
 }
 
-uint8_t isalpha(char c)
+void iinit(interpreter *interp)
 {
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+	interp->vars = (variable *)calloc(MAX_VARS, sizeof(variable));
+	interp->vnames = (char **)calloc(MAX_VARS, sizeof(char *));
+	interp->stack = (stack_t *)calloc(MAX_STACK, sizeof(stack_t));
+	interp->stidx = 0;
 }
 
-uint8_t isnum(char c)
+variable *interpreter_get_variable(interpreter *interp, const char *name)
 {
-	return (c >= '0' && c <= '9');
-}
-
-uint8_t isname(char c)
-{
-	return isalpha(c) || isnum(c);
-}
-
-uint8_t isspace(char c)
-{
-	return (c == ' ' || c == '\t' || c == '\n');
-}
-
-uint8_t isoper(char c)
-{
-	for (uint8_t i = 0; i < sizeof(interpreter_operators); i++) {
-		if (c == interpreter_operators[i])
-			return 1;
-	}
-
-	return 0;
-}
-
-void interpreter_init(interpreter *interp)
-{
-	interp->status = READY;
-	interp->vcount = 0;
-	interp->vars = (variable *)calloc(32, sizeof(variable));
-	interp->names = (char **)calloc(32, sizeof(char *));
-	interp->stack = (stack_t *)calloc(64, sizeof(stack_t));
-}
-
-void interpreter_define_value(interpreter *interp, const char *name, int32_t value)
-{
-	interp->names[interp->vcount] = (char *)name; 
-	interp->vars[interp->vcount].nameidx = interp->vcount;
-	interp->vars[interp->vcount].type = VALUE;
-	interp->vars[interp->vcount].value = (uint32_t)value;
-	interp->vcount++;
-}
-
-void interpreter_define_cfunc(interpreter *interp, const char *name, func_t addr)
-{
-	interp->names[interp->vcount] = (char *)name;
-	interp->vars[interp->vcount].nameidx = interp->vcount;
-	interp->vars[interp->vcount].type = CFUNCTION;
-	interp->vars[interp->vcount].value = (uint32_t)addr;
-	interp->vcount++;
-}
-
-int32_t interpreter_get_value(interpreter *interp, const char *name)
-{
-	for (uint16_t i = 0; i < interp->vcount; i++) {
-		if (!strcmp(interp->names[i], name))
-			return (int32_t)interp->vars[i].value;
-	}
-
-	return 0;
-}
-
-/**
- * doline section
- */
-
-bool namencmp(const char *name, const char *s)
-{
-	uint16_t i;
-	for (i = 0; name[i] == s[i] && s[i] != '\0'; i++);
-	return (name[i] == '\0' && !isname(s[i]));
-}
-
-uint16_t spacecount(const char *s)
-{
-	uint16_t i;
-	for (i = 0; isspace(s[i]); i++);
-	return i;
-}
-
-char *copystr(const char *s, char end)
-{
-	uint16_t len = 0;
-	while (s[len++] != end);
-	char *buf = (char *)malloc(len);
-	for (uint16_t i = 0; i < len; i++)
-		buf[i] = s[i];
-	return buf;
-}
-
-char *copysubstr(const char *s, int end)
-{
-	char *buf = (char *)malloc(end);
-	for (uint16_t i = 0; i < end; i++)
-		buf[i] = s[i];
-	return buf;
-}
-
-variable *interpreter_getvar(interpreter *interp, const char *line)
-{
-	for (uint16_t i = 0; i < interp->vcount; i++) {
-		if (namencmp(interp->names[i], line))
+	for (uint32_t i = 0; i < MAX_VARS; i++) {
+		if (!interp->vars[i].used) {
+			interp->vars[i].used = 1;
+			interp->vars[i].valtype = FUNC;
+			interp->vars[i].value = 0;
+			interp->vnames[i] = strclone(name);
 			return &interp->vars[i];
+		} else if (interp->vnames[i] != 0 && !strcmp(interp->vnames[i], name)) {
+			return &interp->vars[i];
+		}
 	}
-
 	return 0;
 }
 
-int interpreter_doline(interpreter *interp, const char *line)
+void inew_string(interpreter *interp, const char *name, char *value)
 {
-	variable *bits[16];
-	uint16_t offset = 0, boffset = 0;
-
-	// check for var/func set or usage
-	int end;
-getvar:
-	for (end = 0; isname(line[end]); end++);
-	variable *var = interpreter_getvar(interp, line);
-
-	if (var != 0) {
-		bits[boffset++] = var;
-	} else {
-		// defining new variable
-		interpreter_define_value(interp, copysubstr(line, end), 0);
-		goto getvar; // try again
+	variable *v = interpreter_get_variable(interp, name);
+	if (v != 0) {
+		v->valtype = STRING;
+		v->value = (uint32_t)value;
 	}
+}
 
-	// skip whitespace/name
-	offset += end;
-	offset += spacecount(line + offset); 
+void inew_integer(interpreter *interp, const char *name, int32_t value)
+{
+	variable *v = interpreter_get_variable(interp, name);
+	if (v != 0) {
+		v->valtype = INTEGER;
+		v->value = (uint32_t)value;
+	}
+}
 
-	if (boffset == 0 && line[offset] != '=')
-		return -1; // variable not found
+void inew_float(interpreter *interp, const char *name, float value)
+{
+	variable *v = interpreter_get_variable(interp, name);
+	if (v != 0) {
+		v->valtype = FLOAT;
+		v->value = (uint32_t)value;
+	}
+}
 
-	// find operator
-	if (line[offset] == '\0') {
-		// print value
-		return -99;
-	} else if (line[offset] == '=') {
-		// assignment/expression
-		offset++;
-		offset += spacecount(line + offset);
-		bits[0]->value = (uint32_t)copystr(line + offset, '\0');
-	} else if (line[offset] == '(') {
-		// function call
-		offset++;
-		if (bits[0]->type != FUNCTION && bits[0]->type != CFUNCTION)
-			return -2;
-		offset += spacecount(line + offset);
-		
-		// collect arg offsets
-		uint16_t offsets[8];
-		uint8_t ooffset = 0;
-		while (line[offset] != ')' && line[offset] != '\0') {
-			offsets[ooffset] = offset;
-			offset += spacecount(line + offset);
+void inew_cfunc(interpreter *interp, const char *name, func_t func)
+{
+	variable *v = interpreter_get_variable(interp, name);
+	if (v != 0) {
+		v->fromc = 1;
+		v->valtype = FUNC;
+		v->value = (uint32_t)func;
+	}
+}
 
-			uint8_t isvn = 1;
-			do {
-				if (line[offset] == ' ' || line[offset] == '\t') {
-					offset += spacecount(line + offset);
-					isvn = 0;
+uint8_t eol(int c)
+{
+	return c == '\n' || c == '\0';
+}
+
+uint8_t eot(int c)
+{
+	return eol(c) || c == ' ';
+}
+
+variable *make_var(interpreter *interp, const char *line, uint32_t *next)
+{
+	if (line[0] == '\"') { // string literal
+		uint32_t end = 1;
+		while (!eol(line[end])) {
+			if (line[end] == '\"'/* && line[end - 1] != '\\'*/) {
+				if (!eot(line[end + 1]))
+					return 0;
+				// TODO string breakdown
+				variable *v = (variable *)malloc(sizeof(variable));
+				v->valtype = STRING;
+				v->value = (uint32_t)strnclone(line + 1, end - 1);
+				*next = end + 1;
+				return v;
+			}
+			end++;
+		}
+		return 0;
+	} else if (line[0] == '(') { // equation literal
+		uint32_t end = 1;
+		while (!eol(line[end])) {
+			if (line[end] == ')' && line[end - 1] != '\\') {
+				if (!eot(line[end + 1]))
+					return 0;
+				// TODO string breakdown
+				// TODO make var
+				return 0;
+			}
+			end++;
+		}
+	} else if (isalpha(line[0])) { // variable/func
+		uint32_t end = 1;
+		for (; isalnum(line[end]); end++);
+		if (!eot(line[end]))
+			return 0;
+		char *name = (char *)malloc(end + 1);
+		strncpy(name, line, end);
+		name[end] = '\0';
+		*next = end;
+		return interpreter_get_variable(interp, name);
+	} else if (isdigit(line[0])) { // number
+		uint32_t end = 1;
+		uint8_t dec = 0;
+		for (; !eot(line[end]); end++) {
+			if (!isdigit(line[end])) {
+				if (line[end] == '.') {
+					if (!dec)
+						dec = 1;
+					else
+						return 0;
 				}
+				return 0;
+			}
+		}
+		variable *v = (variable *)malloc(sizeof(variable));
+		v->valtype = INTEGER;
+		v->value = atoi(line);
+		*next = end;
+		return v;
+	}
+	return 0;
+}
 
-				if (line[offset] == ',') {
-					offset++;
-					ooffset++;
-					break;
-				} else if (line[offset] == ')') {
-					ooffset++;
-					break;
-				} else if (isvn == 0) {
-					return -3;
-				}
-			} while (++offset);
+int idoline(interpreter *interp, const char *line)
+{
+	variable *ops[8];
+	uint32_t ooffset = 0;
+	uint32_t offset = 0;
+	uint32_t next;
+
+	// step 1 - convert to tokens
+	while (!eol(line[offset])) {
+		ops[ooffset] = make_var(interp, line + offset, &next);
+		if (ops[ooffset] == 0) {
+			return -4;
+		} else {
+			ooffset++;
+			offset += next;
 		}
 
-		// populate stack
-		for (uint8_t i = 0; i < ooffset; i++) {
-			uint16_t j;
-			for (j = offsets[i]; line[j] != ' ' && line[j] != '\t' &&
-					line[j] != ',' && line[j] != ')'; j++);
-			j -= offsets[i];
-
-			variable *var = interpreter_getvar(interp, line + offsets[i]);
-			if (var != 0)
-				interp->stack[i] = copystr((char *)var->value, '\0');
-			else
-				interp->stack[i] = copysubstr(line + offsets[i], j);
-		}
-
-		((func_t)bits[0]->value)(interp->stack);
-	} else {
-		return -2; // invalid operation
+		// skip whitespace
+		for (; line[offset] == ' ' && !eol(line[offset]); offset++);
 	}
+
+	// step 2 - execute
+	if (ooffset == 0)
+		return -1;
+
+	if (ops[0]->valtype != FUNC)
+		return -2;
+
+	if (ops[0]->value == 0)
+		return -3;
+
+	for (uint32_t i = 0; i < ooffset - 1; i++, interp->stidx++)
+		interp->stack[i] = ops[i + 1];
+
+	((func_t)ops[0]->value)(interp);
 
 	return 0;
 }
+
+char *igetarg_string(interpreter *interp, uint32_t index)
+{
+	if (index >= interp->stidx)
+		return 0;
+	if (interp->stack[index]->valtype != STRING)
+		return 0;
+	return (char *)interp->stack[index]->value;
+}
+
+int igetarg_integer(interpreter *interp, uint32_t index)
+{
+	if (index >= interp->stidx)
+		return 0;
+	if (interp->stack[index]->valtype != INTEGER)
+		return 0;
+	return (int)interp->stack[index]->value;
+}
+
+float igetarg_float(interpreter *interp, uint32_t index)
+{
+	if (index >= interp->stidx)
+		return 0;
+	if (interp->stack[index]->valtype != FLOAT)
+		return 0;
+	return (float)interp->stack[index]->value;
+}
+
+/*char *iget_string(interpreter *, const char *)
+{
+
+}
+
+int iget_integer(interpreter *, const char *)
+{
+
+}
+
+float iget_float(interpreter *, const char *)
+{
+
+}*/
 

@@ -3,29 +3,32 @@
 
 #include <variable.h>
 
-typedef void *stack_t;
+typedef variable *stack_t;
 
 typedef struct {
-	uint16_t status;
-	uint16_t vcount;
 	variable *vars;
-	char **names;
+	char **vnames;
 	stack_t *stack;
+	uint32_t stidx;
 } interpreter;
 
-enum status {
-	READY = 0
-};
+typedef void (*func_t)(interpreter *);
 
-typedef void (*func_t)(stack_t *);
+void iinit(interpreter *);
 
-void interpreter_init(interpreter *);
+void inew_string(interpreter *, const char *, char *);
+void inew_integer(interpreter *, const char *, int32_t);
+void inew_float(interpreter *, const char *, float);
+void inew_cfunc(interpreter *, const char *, func_t);
 
-void interpreter_define_value(interpreter *, const char *, int32_t);
-void interpreter_define_cfunc(interpreter *, const char *, func_t);
+int idoline(interpreter *, const char *);
 
-int32_t interpreter_get_value(interpreter *, const char *);
+char *igetarg_string(interpreter *, uint32_t);
+int igetarg_integer(interpreter *, uint32_t); 
+float igetarg_float(interpreter *, uint32_t);
 
-int interpreter_doline(interpreter *, const char *);
+char *iget_string(interpreter *, const char *);
+int iget_integer(interpreter *, const char *);
+float iget_float(interpreter *, const char *);
 
 #endif // PARSER_H_
