@@ -4,12 +4,36 @@
 #include <stdlib.h>
 #include <string.h>
 
-void test(interpreter *it)
+void s_put(interpreter *it)
 {
 	char *s = igetarg_string(it, 0);
 	if (s == 0)
 		s = "(null)";
 	printf("%s\n", s);
+}
+
+void s_type(interpreter *it)
+{
+	if (it->stidx != 1)
+		return;
+	variable *v = (variable *)it->stack[0];
+	switch (v->valtype) {
+	case STRING:
+		puts("string");
+		break;
+	case INTEGER:
+		puts("integer");
+		break;
+	case FLOAT:
+		puts("float");
+		break;
+	case FUNC:
+		puts(v->value == 0 ? "undefined" : "func" );
+		break;
+	default:
+		puts("unknown");
+		break;
+	}
 }
 
 void quit(interpreter *it)
@@ -23,9 +47,9 @@ int main()
 	interpreter interp;
 
 	iinit(&interp);
-	inew_integer(&interp, "answer", 42);
-	inew_cfunc(&interp, "put", test);
-	inew_cfunc(&interp, "exit", quit);
+	inew_cfunc(&interp, "put", s_put);
+	inew_cfunc(&interp, "tp", s_type);
+	inew_cfunc(&interp, "q", quit);
 
 
 	char *line = 0;
