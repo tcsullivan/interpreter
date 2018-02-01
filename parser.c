@@ -27,6 +27,9 @@ char *strnclone(const char *s, uint32_t n)
 }
 
 void ifunc_set(interpreter *it);
+void ifunc_jmp(interpreter *it);
+void ifunc_label(interpreter *it);
+void ifunc_end(interpreter *it);
 
 variable *idoexpr(interpreter *interp, const char *line);
 
@@ -40,8 +43,24 @@ void iinit(interpreter *interp)
 	interp->vnames = (char **)calloc(MAX_VARS, sizeof(char *));
 	interp->stack = (stack_t *)calloc(MAX_STACK, sizeof(stack_t));
 	interp->stidx = 0;
+	interp->lines = (char **)calloc(20, sizeof(char *));
+	interp->lnidx = 0;
+	interp->indent = 0;
 
 	inew_cfunc(interp, "set", ifunc_set);
+	inew_cfunc(interp, "jmp", ifunc_jmp);
+	inew_cfunc(interp, "func", ifunc_label);
+	inew_cfunc(interp, "end", ifunc_end);
+}
+
+void ipush(interpreter *it, void *v)
+{
+	it->stack[it->stidx++] = v;
+}
+
+void *ipop(interpreter *it)
+{
+	return it->stack[--it->stidx];
 }
 
 variable *interpreter_get_variable(interpreter *interp, const char *name)
@@ -193,9 +212,20 @@ variable *make_var(interpreter *interp, const char *line, uint32_t *next)
 int idoline(interpreter *interp, const char *line)
 {
 	variable *ops[8];
-	uint32_t ooffset = 0;
-	uint32_t offset = 0;
-	uint32_t next;
+	uint32_t ooffset, offset, next;
+
+	interp->lines[interp->lnidx] = strclone(line);
+loop:
+	if (line[0] == '`') {
+		goto norun;
+	} else if (interp->indent > 0) {
+		if (!strcmp(line, "end"))
+			interp->indent--;
+		goto norun;
+	}
+
+	ooffset = 0;
+	offset = 0;
 
 	// step 1 - convert to tokens
 	while (!eol(line[offset])) {
@@ -221,11 +251,29 @@ int idoline(interpreter *interp, const char *line)
 	if (ops[0]->value == 0)
 		return -3;
 
-	for (uint32_t i = 0; i < ooffset - 1; i++, interp->stidx++)
-		interp->stack[i] = ops[i + 1];
+	for (uint32_t i = ooffset; --i > 0;)
+		ipush(interp, ops[i]);
 
-	((func_t)ops[0]->value)(interp);
-	interp->stidx = 0;
+	if (ops[0]->fromc) {
+		((func_t)ops[0]->value)(interp);
+	} else {
+		ipush(interp, (void *)(interp->lnidx + 1));
+		interp->lnidx = ops[0]->value;
+	}
+
+	interp->stidx -= ooffset - 1;
+
+	if ((int32_t)interp->stidx < 0) {
+		interp->stidx = 0;
+		return -5;
+	}
+
+norun:
+	interp->lnidx++;
+	if (interp->lines[interp->lnidx] != 0) {
+		line = interp->lines[interp->lnidx];
+		goto loop;
+	}
 
 	return 0;
 }
@@ -318,25 +366,35 @@ variable *idoexpr(interpreter *interp, const char *line)
 	return &result;
 }
 
+variable *igetarg(interpreter *interp, uint32_t index)
+{
+	return interp->stack[interp->stidx - index - 1];
+}
+
 char *igetarg_string(interpreter *interp, uint32_t index)
 {
 	if (index >= interp->stidx)
 		return 0;
-	return STR(itostring(interp->stack[index]));
+	variable *v = igetarg(interp, index);
+	if (v->valtype == FUNC)
+		return "(func)";
+	return STR(itostring(v));
 }
 
 int igetarg_integer(interpreter *interp, uint32_t index)
 {
 	if (index >= interp->stidx)
 		return 0;
-	return INT(itoint(interp->stack[index]));
+	variable *v = igetarg(interp, index);
+	return INT(itoint(v));
 }
 
 float igetarg_float(interpreter *interp, uint32_t index)
 {
 	if (index >= interp->stidx)
 		return 0;
-	return FLOAT(itofloat(interp->stack[index]));
+	variable *v = igetarg(interp, index);
+	return FLOAT(itofloat(v));
 }
 
 variable *itostring(variable *v)
@@ -423,14 +481,34 @@ float iget_float(interpreter *, const char *)
 
 void ifunc_set(interpreter *it)
 {
-	if (it->stidx != 2)
-		return;
-
-	variable *n = (variable *)it->stack[0];
-	variable *v = (variable *)it->stack[1];
+	variable *n = igetarg(it, 0);
+	variable *v = igetarg(it, 1);
 
 	n->valtype = v->valtype;
 	n->value = v->value;
+}
+
+void ifunc_label(interpreter *it)
+{
+	variable *n = igetarg(it, 0);
+	n->valtype = FUNC;
+	n->value = it->lnidx;
+
+	it->indent++;
+}
+
+void ifunc_end(interpreter *it)
+{
+	if (it->stidx > 0) {
+		uint32_t line = (uint32_t)ipop(it);
+		it->lnidx = line - 1;
+	}
+}
+
+void ifunc_jmp(interpreter *it)
+{
+	int newidx = igetarg_integer(it, 0);
+	it->lnidx = newidx - 1;
 }
 
 /**

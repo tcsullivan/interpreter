@@ -10,6 +10,9 @@ typedef struct {
 	char **vnames;
 	stack_t *stack;
 	uint32_t stidx;
+	char **lines;
+	uint32_t lnidx;
+	uint8_t indent;
 } interpreter;
 
 typedef void (*func_t)(interpreter *);
@@ -23,6 +26,7 @@ void inew_cfunc(interpreter *, const char *, func_t);
 
 int idoline(interpreter *, const char *);
 
+variable *igetarg(interpreter *, uint32_t);
 char *igetarg_string(interpreter *, uint32_t);
 int igetarg_integer(interpreter *, uint32_t); 
 float igetarg_float(interpreter *, uint32_t);

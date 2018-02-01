@@ -14,8 +14,6 @@ void s_put(interpreter *it)
 
 void s_type(interpreter *it)
 {
-	if (it->stidx != 1)
-		return;
 	variable *v = (variable *)it->stack[0];
 	switch (v->valtype) {
 	case STRING:
@@ -56,6 +54,7 @@ int main()
 	unsigned int size;
 	int result;
 	while (1) {
+		printf("%d> ", interp.lnidx);
 		getline(&line, &size, stdin);
 		*strchr(line, '\n') = '\0';
 		result = idoline(&interp, line);
