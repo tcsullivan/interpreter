@@ -4,15 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-void s_put(interpreter *it)
+int s_put(interpreter *it)
 {
 	char *s = igetarg_string(it, 0);
-	if (s == 0)
-		s = "(null)";
 	printf("%s\n", s);
+	return 0;
 }
 
-void s_type(interpreter *it)
+int s_type(interpreter *it)
 {
 	variable *v = (variable *)it->stack[0];
 	switch (v->valtype) {
@@ -26,18 +25,20 @@ void s_type(interpreter *it)
 		puts("float");
 		break;
 	case FUNC:
-		puts(v->value == 0 ? "undefined" : "func" );
+		puts("func");
 		break;
 	default:
 		puts("unknown");
 		break;
 	}
+	return 0;
 }
 
-void quit(interpreter *it)
+int quit(interpreter *it)
 {
 	(void)it;
 	exit(0);
+	return 0;
 }
 
 int main()

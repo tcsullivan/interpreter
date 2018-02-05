@@ -8,6 +8,7 @@ typedef struct {
 	uint8_t fromc :1;
 	uint8_t valtype :2;
 	uint32_t value;
+	char *svalue;
 } variable;
 
 enum valtype {

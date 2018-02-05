@@ -15,7 +15,7 @@ typedef struct {
 	uint8_t indent;
 } interpreter;
 
-typedef void (*func_t)(interpreter *);
+typedef int (*func_t)(interpreter *);
 
 void iinit(interpreter *);
 
@@ -30,9 +30,5 @@ variable *igetarg(interpreter *, uint32_t);
 char *igetarg_string(interpreter *, uint32_t);
 int igetarg_integer(interpreter *, uint32_t); 
 float igetarg_float(interpreter *, uint32_t);
-
-char *iget_string(interpreter *, const char *);
-int iget_integer(interpreter *, const char *);
-float iget_float(interpreter *, const char *);
 
 #endif // PARSER_H_
