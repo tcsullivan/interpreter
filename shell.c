@@ -41,9 +41,20 @@ int quit(interpreter *it)
 	return 0;
 }
 
-int main()
+int main(int argc, char **argv)
 {
 	interpreter interp;
+
+	if (argc != 2) {
+		printf("Usage: %s file\n", argv[0]);
+		return -1;
+	}
+
+	FILE *fp = fopen(argv[1], "r");
+	if (fp == 0) {
+		printf("Could not open file: %s\n", argv[1]);
+		return -1;
+	}
 
 	iinit(&interp);
 	inew_cfunc(&interp, "put", s_put);
@@ -54,14 +65,13 @@ int main()
 	char *line = 0;
 	unsigned int size;
 	int result;
-	while (1) {
-		printf("%d> ", interp.lnidx);
-		getline(&line, &size, stdin);
+	while (getline(&line, &size, fp) != -1) {
 		*strchr(line, '\n') = '\0';
 		result = idoline(&interp, line);
 		if (result != 0)
 			printf("Error: %d\n", result);
 	}
 
+	fclose(fp);
 	return 0;
 }

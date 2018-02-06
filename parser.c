@@ -16,14 +16,14 @@ static char *str_undef = "(undefined)";
 
 char *strclone(const char *s)
 {
-	char *clone = (char *)malloc(strlen(s));
+	char *clone = (char *)malloc(strlen(s) + 1);
 	strcpy(clone, s);
 	return clone;
 }
 
 char *strnclone(const char *s, uint32_t n)
 {
-	char *clone = (char *)malloc(n);
+	char *clone = (char *)malloc(n + 1);
 	strncpy(clone, s, n);
 	return clone;
 }
@@ -74,10 +74,25 @@ uint32_t findend(const char *s, char o, char c)
 
 	return i;
 }
+
+void skipblank(const char *s, uint8_t (*cmp)(int), uint32_t *offset)
+{
+	uint32_t i = *offset;
+	while (!cmp(s[i])) {
+		if (s[i] != ' ' && s[i] != '\t')
+			break;
+		i++;
+	}
+	*offset = i;
+}
+
 int ifunc_set(interpreter *it);
 int ifunc_jmp(interpreter *it);
 int ifunc_label(interpreter *it);
 int ifunc_end(interpreter *it);
+int ifunc_if(interpreter *it);
+int ifunc_do(interpreter *it);
+int ifunc_while(interpreter *it);
 
 variable *idoexpr(interpreter *interp, const char *line);
 
@@ -99,6 +114,9 @@ void iinit(interpreter *interp)
 	inew_cfunc(interp, "jmp", ifunc_jmp);
 	inew_cfunc(interp, "func", ifunc_label);
 	inew_cfunc(interp, "end", ifunc_end);
+	inew_cfunc(interp, "if", ifunc_if);
+	inew_cfunc(interp, "do", ifunc_do);
+	inew_cfunc(interp, "while", ifunc_while);
 }
 
 void ipush(interpreter *it, void *v)
@@ -266,6 +284,7 @@ loop:
 	offset = 0;
 
 	// step 1 - convert to tokens
+	skipblank(line, eol, &offset);
 	while (!eol(line[offset])) {
 		ops[ooffset] = make_var(interp, line + offset, &next);
 		if (ops[ooffset] == 0) {
@@ -274,9 +293,7 @@ loop:
 			ooffset++;
 			offset += next;
 		}
-
-		// skip whitespace
-		for (; line[offset] == ' ' && !eol(line[offset]); offset++);
+		skipblank(line, eol, &offset);
 	}
 
 	// step 2 - execute
@@ -365,7 +382,7 @@ variable *idoexpr(interpreter *interp, const char *line)
 	// step 1 - break apart line
 
 	// skip whitespace
-	for (; line[offset] == ' ' && !eol(line[offset]); offset++);
+	skipblank(line, eol, &offset);
 	while (!eoe(line[offset])) {
 		if (line[offset] == '(') {
 			uint8_t indent = 0;
@@ -404,7 +421,7 @@ variable *idoexpr(interpreter *interp, const char *line)
 		offset += next;
 
 		// skip whitespace
-		for (; line[offset] == ' ' && !eoe(line[offset]); offset++);
+		skipblank(line, eoe, &offset);
 		if (eoe(line[offset]))
 			break;
 
@@ -421,7 +438,7 @@ variable *idoexpr(interpreter *interp, const char *line)
 		ooffset++;
 
 		// skip whitespace
-		for (; line[offset] == ' ' && !eol(line[offset]); offset++);
+		skipblank(line, eol, &offset);
 	}
 
 	if (ooffset % 2 == 0)
@@ -557,6 +574,14 @@ int ifunc_label(interpreter *it)
 	return 0;
 }
 
+int ifunc_if(interpreter *it)
+{
+	int v = igetarg_integer(it, 0);
+	if (v == 0)
+		it->indent++;
+	return 0;
+}
+
 int ifunc_end(interpreter *it)
 {
 	if (it->stidx > 0) {
@@ -573,6 +598,25 @@ int ifunc_jmp(interpreter *it)
 	ipush(it, (void *)(it->lnidx + 1));
 	ipush(it, 0);
 	it->lnidx = newidx - 1;
+	return 0;
+}
+
+int ifunc_do(interpreter *it)
+{
+	ipush(it, (void *)it->lnidx);
+	return 0;
+}
+
+int ifunc_while(interpreter *it)
+{
+	int c = igetarg_integer(it, 0);
+	ipop(it);
+	int nidx = (int)ipop(it);
+	if (c != 0) {
+		ipush(it, (void *)nidx);
+		it->lnidx = nidx;
+	}
+	ipush(it, 0);
 	return 0;
 }
 

@@ -1,0 +1,5 @@
+set a 0
+do
+	put a
+	set a (a+1)
+while (a<5)
