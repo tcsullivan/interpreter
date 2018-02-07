@@ -13,6 +13,7 @@ typedef struct {
 	char **lines;
 	uint32_t lnidx;
 	uint8_t indent;
+	variable *ret;
 } interpreter;
 
 typedef int (*func_t)(interpreter *);
@@ -25,10 +26,5 @@ void inew_float(interpreter *, const char *, float);
 void inew_cfunc(interpreter *, const char *, func_t);
 
 int idoline(interpreter *, const char *);
-
-variable *igetarg(interpreter *, uint32_t);
-char *igetarg_string(interpreter *, uint32_t);
-int igetarg_integer(interpreter *, uint32_t); 
-float igetarg_float(interpreter *, uint32_t);
 
 #endif // PARSER_H_

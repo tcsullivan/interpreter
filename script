@@ -1,5 +1,17 @@
+func inc
+	set arg0 (arg0 + 1)
+	ret arg0
+end
+
 set a 0
 do
-	put a
-	set a (a+1)
-while (a<5)
+	inc a > a
+	if ((a % 9) == 0)
+		put a
+	end
+while (a < 100)
+
+if (a == 100)
+	put "All good!"
+end
+

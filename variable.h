@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define INT(v)   (*((int32_t *)&v->value))
+#define FLOAT(v) (*((float *)&v->value))
+
 typedef struct {
 	uint8_t used :1;
 	uint8_t fromc :1;
@@ -17,5 +20,12 @@ enum valtype {
 	FLOAT,
 	FUNC
 };
+
+void isetstr(variable *i);
+void fsetstr(variable *f);
+
+variable *itostring(variable *v);
+variable *itoint(variable *v);
+variable *itofloat(variable *v);
 
 #endif // VARIABLE_H_

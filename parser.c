@@ -1,132 +1,41 @@
 #include <parser.h>
 
+#include "shelpers.h"
+#include "builtins.h"
+#include "stack.h"
+#include "ops.h"
+
 #include <ctype.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_VARS  32
-#define MAX_STACK 32
+#define MAX_VARS  48
+#define MAX_STACK 16
+#define MAX_LINES 1000
 
-#define INT(v)   (*((int32_t *)&v->value))
-#define FLOAT(v) (*((float *)&v->value))
-
-static char *str_func = "(func)";
-static char *str_undef = "(undefined)";
-
-char *strclone(const char *s)
-{
-	char *clone = (char *)malloc(strlen(s) + 1);
-	strcpy(clone, s);
-	return clone;
-}
-
-char *strnclone(const char *s, uint32_t n)
-{
-	char *clone = (char *)malloc(n + 1);
-	strncpy(clone, s, n);
-	return clone;
-}
-
-void fsetstr(variable *f)
-{
-	if (f->svalue == 0)
-		f->svalue = (char *)malloc(16);
-	snprintf(f->svalue, 16, "%f", FLOAT(f));
-}
-
-void isetstr(variable *i)
-{
-	if (i->svalue == 0)
-		i->svalue = (char *)malloc(12);
-	snprintf(i->svalue, 12, "%d", INT(i));
-}
-
-uint8_t eol(int c)
-{
-	return c == '\n' || c == '\0';
-}
-
-uint8_t eot(int c)
-{
-	return eol(c) || c == ' ';
-}
-
-uint8_t eoe(int c)
-{
-	return eol(c) || c == ')';
-}
-
-uint32_t findend(const char *s, char o, char c)
-{
-	uint8_t indent = 0;
-	uint32_t i;
-	for (i = 1; !eol(s[i]); i++) {
-		if (s[i] == o) {
-			indent++;
-		} else if (s[i] == c) {
-			if (indent == 0)
-				break;
-			else
-				indent--;
-		}
-	}
-
-	return i;
-}
-
-void skipblank(const char *s, uint8_t (*cmp)(int), uint32_t *offset)
-{
-	uint32_t i = *offset;
-	while (!cmp(s[i])) {
-		if (s[i] != ' ' && s[i] != '\t')
-			break;
-		i++;
-	}
-	*offset = i;
-}
-
-int ifunc_set(interpreter *it);
-int ifunc_jmp(interpreter *it);
-int ifunc_label(interpreter *it);
-int ifunc_end(interpreter *it);
-int ifunc_if(interpreter *it);
-int ifunc_do(interpreter *it);
-int ifunc_while(interpreter *it);
+char *str_func = "(func)";
+char *str_undef = "(undefined)";
 
 variable *idoexpr(interpreter *interp, const char *line);
 
-variable *itostring(variable *v);
-variable *itoint(variable *v);
-variable *itofloat(variable *v);
-
 void iinit(interpreter *interp)
 {
-	interp->vars = (variable *)calloc(MAX_VARS, sizeof(variable));
-	interp->vnames = (char **)calloc(MAX_VARS, sizeof(char *));
-	interp->stack = (stack_t *)calloc(MAX_STACK, sizeof(stack_t));
+	interp->vars = (variable *)malloc(MAX_VARS * sizeof(variable));
+	interp->vnames = (char **)malloc(MAX_VARS * sizeof(char *));
+	interp->stack = (stack_t *)malloc(MAX_STACK * sizeof(stack_t));
 	interp->stidx = 0;
-	interp->lines = (char **)calloc(20, sizeof(char *));
+	interp->lines = (char **)calloc(MAX_LINES, sizeof(char *));
 	interp->lnidx = 0;
 	interp->indent = 0;
 
-	inew_cfunc(interp, "set", ifunc_set);
-	inew_cfunc(interp, "jmp", ifunc_jmp);
-	inew_cfunc(interp, "func", ifunc_label);
-	inew_cfunc(interp, "end", ifunc_end);
-	inew_cfunc(interp, "if", ifunc_if);
-	inew_cfunc(interp, "do", ifunc_do);
-	inew_cfunc(interp, "while", ifunc_while);
-}
+	for (unsigned int i = 0; i < MAX_VARS; i++) {
+		interp->vars[i].used = 0;
+		interp->vnames[i] = 0;
+	}
+	for (unsigned int i = 0; i < MAX_LINES; i++)
+		interp->lines[i] = 0;
 
-void ipush(interpreter *it, void *v)
-{
-	it->stack[it->stidx++] = v;
-}
-
-void *ipop(interpreter *it)
-{
-	return it->stack[--it->stidx];
+	iload_core(interp);
 }
 
 variable *interpreter_get_variable(interpreter *interp, const char *name)
@@ -270,22 +179,34 @@ int idoline(interpreter *interp, const char *line)
 	variable *ops[8];
 	uint32_t ooffset, offset, next;
 
+	if (line[0] == '\0')
+		return 0;
+
 	interp->lines[interp->lnidx] = strclone(line);
 loop:
+	ooffset = 0;
+	offset = 0;
+
 	if (line[0] == '#') {
 		goto norun;
 	} else if (interp->indent > 0) {
-		if (!strcmp(line, "end"))
+		skipblank(line, eol, &offset);
+		if (!strcmp(line + offset, "end"))
 			interp->indent--;
 		goto norun;
 	}
 
-	ooffset = 0;
-	offset = 0;
-
 	// step 1 - convert to tokens
 	skipblank(line, eol, &offset);
 	while (!eol(line[offset])) {
+		if (offset > 0 && line[offset] == '>') {
+			offset++;
+			skipblank(line, eol, &offset);
+			interp->ret = make_var(interp, line + offset, &next);
+			offset += next;
+			skipblank(line, eol, &offset);
+			continue;
+		}
 		ops[ooffset] = make_var(interp, line + offset, &next);
 		if (ops[ooffset] == 0) {
 			return -4;
@@ -303,22 +224,39 @@ loop:
 	if (ops[0]->valtype != FUNC)
 		return -2;
 
-	if (ops[0]->value == 0)
+	if (ops[0]->fromc && ops[0]->value == 0)
 		return -3;
 
-	for (uint32_t i = ooffset; --i > 0;)
-		ipush(interp, ops[i]);
-
 	if (ops[0]->fromc) {
+		for (uint32_t i = ooffset; --i > 0;)
+			ipush(interp, ops[i]);
+
 		int ret = ((func_t)ops[0]->value)(interp);
 		if (ret != 0)
 			return ret;
+		ipopm(interp, ooffset - 1);
 	} else {
-		ipush(interp, (void *)(interp->lnidx + 1));
+		char an[6];
+		for (uint32_t i = 1; i < ooffset; i++) {
+			snprintf(an, 6, "arg%d", i - 1);
+			switch (ops[i]->valtype) {
+			case STRING:
+				inew_string(interp, an, ops[i]->svalue);
+				break;
+			case INTEGER:
+				inew_integer(interp, an, INT(ops[i]));
+				break;
+			case FLOAT:
+				inew_float(interp, an, FLOAT(ops[i]));
+				break;
+			default:
+				break;
+			}
+		}
+
+		ipush(interp, (void *)(interp->lnidx));
 		interp->lnidx = ops[0]->value;
 	}
-
-	interp->stidx -= ooffset - 1;
 
 	if ((int32_t)interp->stidx < 0) {
 		interp->stidx = 0;
@@ -339,36 +277,6 @@ norun:
 
 	return 0;
 }
-
-typedef void (*operation_t)(variable *, variable *, variable *);
-
-#define IOPS_COUNT 15
-static char *iops[IOPS_COUNT] = {
-	"+", "-", "*", "/", "&", "|", "^", ">>", "<<",
-	"==", "<", ">", "<=", ">=", "!="
-};
-
-void iop_add(variable *, variable *, variable *);
-void iop_sub(variable *, variable *, variable *);
-void iop_mult(variable *, variable *, variable *);
-void iop_div(variable *, variable *, variable *);
-void iop_and(variable *, variable *, variable *);
-void iop_or(variable *, variable *, variable *);
-void iop_xor(variable *, variable *, variable *);
-void iop_shr(variable *, variable *, variable *);
-void iop_shl(variable *, variable *, variable *);
-void iop_eq(variable *, variable *, variable *);
-void iop_lt(variable *, variable *, variable *);
-void iop_gt(variable *, variable *, variable *);
-void iop_lte(variable *, variable *, variable *);
-void iop_gte(variable *, variable *, variable *);
-void iop_ne(variable *, variable *, variable *);
-
-static operation_t iopfuncs[IOPS_COUNT] = {
-	iop_add, iop_sub, iop_mult, iop_div, iop_and,
-	iop_or, iop_xor, iop_shr, iop_shl,
-	iop_eq, iop_lt, iop_gt, iop_lte, iop_gte, iop_ne
-};
 
 variable *idoexpr(interpreter *interp, const char *line)
 {
@@ -413,12 +321,12 @@ variable *idoexpr(interpreter *interp, const char *line)
 			ops[ooffset] = make_var(interp, line + offset, &next);
 			if (end != 0)
 				mline[end] = cend;
+			offset += next;
 		}
 		if (ops[ooffset] == 0)
 			return 0;
 		
 		ooffset++;
-		offset += next;
 
 		// skip whitespace
 		skipblank(line, eoe, &offset);
@@ -462,292 +370,5 @@ variable *idoexpr(interpreter *interp, const char *line)
 		fsetstr(result);
 
 	return result;
-}
-
-variable *igetarg(interpreter *interp, uint32_t index)
-{
-	return interp->stack[interp->stidx - index - 1];
-}
-
-char *igetarg_string(interpreter *interp, uint32_t index)
-{
-	if (index >= interp->stidx)
-		return 0;
-	variable *v = igetarg(interp, index);
-	return v->svalue;
-}
-
-int igetarg_integer(interpreter *interp, uint32_t index)
-{
-	if (index >= interp->stidx)
-		return 0;
-	variable *v = igetarg(interp, index);
-	return INT(itoint(v));
-}
-
-float igetarg_float(interpreter *interp, uint32_t index)
-{
-	if (index >= interp->stidx)
-		return 0;
-	variable *v = igetarg(interp, index);
-	return FLOAT(itofloat(v));
-}
-
-variable *itostring(variable *v)
-{
-	switch (v->valtype) {
-	case INTEGER:
-		v->valtype = STRING;
-		isetstr(v);
-		break;
-	case FLOAT:
-		v->valtype = STRING;
-		fsetstr(v);
-		break;
-	}
-	return v;
-}
-
-variable *itoint(variable *v)
-{
-	switch (v->valtype) {
-	case STRING:
-		v->valtype = INTEGER;
-		INT(v) = atoi(v->svalue);
-		isetstr(v);
-		break;
-	case FLOAT:
-		v->valtype = INTEGER;
-		INT(v) = (int32_t)FLOAT(v);
-		isetstr(v);
-		break;
-	}
-	return v;
-}
-
-variable *itofloat(variable *v)
-{
-	switch (v->valtype) {
-	case STRING:
-		v->valtype = FLOAT;
-		FLOAT(v) = strtof(v->svalue, 0);
-		fsetstr(v);
-		break;
-	case INTEGER:
-		v->valtype = FLOAT;
-		FLOAT(v) = (float)INT(v);
-		fsetstr(v);
-		break;
-	}
-	return v;
-}
-
-/**
- * Builtin functions
- */
-
-int ifunc_set(interpreter *it)
-{
-	variable *n = igetarg(it, 0);
-	variable *v = igetarg(it, 1);
-
-	if (n == 0)
-		return -1;
-
-	n->valtype = v->valtype;
-	n->value = v->value;
-	n->svalue = v->svalue;
-	return 0;
-}
-
-int ifunc_label(interpreter *it)
-{
-	variable *n = igetarg(it, 0);
-	
-	if (n == 0)
-		return -1;
-
-	n->valtype = FUNC;
-	n->value = it->lnidx;
-	n->svalue = str_func;
-	it->indent++;
-	return 0;
-}
-
-int ifunc_if(interpreter *it)
-{
-	int v = igetarg_integer(it, 0);
-	if (v == 0)
-		it->indent++;
-	return 0;
-}
-
-int ifunc_end(interpreter *it)
-{
-	if (it->stidx > 0) {
-		uint32_t line = (uint32_t)ipop(it);
-		it->lnidx = line - 1;
-	}
-	return 0;
-}
-
-int ifunc_jmp(interpreter *it)
-{
-	int newidx = igetarg_integer(it, 0);
-	ipop(it);
-	ipush(it, (void *)(it->lnidx + 1));
-	ipush(it, 0);
-	it->lnidx = newidx - 1;
-	return 0;
-}
-
-int ifunc_do(interpreter *it)
-{
-	ipush(it, (void *)it->lnidx);
-	return 0;
-}
-
-int ifunc_while(interpreter *it)
-{
-	int c = igetarg_integer(it, 0);
-	ipop(it);
-	int nidx = (int)ipop(it);
-	if (c != 0) {
-		ipush(it, (void *)nidx);
-		it->lnidx = nidx;
-	}
-	ipush(it, 0);
-	return 0;
-}
-
-/**
- * Builtin operations
- */
-
-void iop_add(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) + INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) + FLOAT(b);
-	}
-}
-
-void iop_sub(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) - INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) - FLOAT(b);
-	}
-}
-
-void iop_mult(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) * INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) * FLOAT(b);
-	}
-}
-
-void iop_div(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) / INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) / FLOAT(b);
-	}
-}
-
-void iop_and(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) & INT(b);
-	}
-}
-
-void iop_or(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) | INT(b);
-	}
-}
-
-void iop_xor(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) ^ INT(b);
-	}
-}
-
-void iop_shr(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) >> INT(b);
-	}
-}
-
-void iop_shl(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) << INT(b);
-	}
-}
-
-void iop_eq(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) == INT(b);
-	else
-		INT(r) = FLOAT(a) == FLOAT(b);
-}
-
-void iop_lt(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) < INT(b);
-	else
-		INT(r) = FLOAT(a) < FLOAT(b);
-}
-
-void iop_gt(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) > INT(b);
-	else
-		INT(r) = FLOAT(a) > FLOAT(b);
-}
-
-void iop_lte(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) <= INT(b);
-	else
-		INT(r) = FLOAT(a) <= FLOAT(b);
-}
-
-void iop_gte(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) >= INT(b);
-	else
-		INT(r) = FLOAT(a) >= FLOAT(b);
-}
-
-void iop_ne(variable *r, variable *a, variable *b)
-{
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) != INT(b);
-	else
-		INT(r) = FLOAT(a) != FLOAT(b);
 }
 

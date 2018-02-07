@@ -6,14 +6,19 @@ To use this program with your own device, you need some malloc/free implementati
 Only a few commands are built in to the interpreter:  
 * set - set variables
 * func/end - define functions
-* jmp - jump to line
-  
+* if/end - if conditional
+* do/while
+* ret - return value from function
+
 Other features:  
 * function/variable defining in c
 * expression solving  
+* no local variables
+* whitespace hopefully ignored
   
 Soon:  
-* conditionals
 * error messages
+* arrays?
+* maybe for loops
   
 This project is still in heavy development, so don't expect much. To include it in your own project, just link in parser.o and use the header files.
