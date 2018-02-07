@@ -186,18 +186,17 @@ int idoline(interpreter *interp, const char *line)
 loop:
 	ooffset = 0;
 	offset = 0;
+	skipblank(line, eol, &offset);
 
-	if (line[0] == '#') {
+	if (line[offset] == '#') {
 		goto norun;
 	} else if (interp->indent > 0) {
-		skipblank(line, eol, &offset);
 		if (!strcmp(line + offset, "end"))
 			interp->indent--;
 		goto norun;
 	}
 
 	// step 1 - convert to tokens
-	skipblank(line, eol, &offset);
 	while (!eol(line[offset])) {
 		if (offset > 0 && line[offset] == '>') {
 			offset++;
