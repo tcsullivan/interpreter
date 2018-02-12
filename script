@@ -1,17 +1,18 @@
-func inc
-	set arg0 (arg0 + 1)
-	ret arg0
+func divisible
+	if (arg1 == 0)
+		ret 0
+	end
+	ret (arg0 % arg1)
 end
 
 set a 0
+set b 4
 do
-	inc a > a
-	if ((a % 9) == 0)
-		put a
+	set a (a + 1)
+	divisible a b > i
+	if (i == 0)
+		print a
 	end
 while (a < 100)
 
-if (a == 100)
-	put "All good!"
-end
-
+print "All done!"

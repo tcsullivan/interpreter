@@ -5,6 +5,47 @@
 #include <stdlib.h>
 
 extern char *str_undef;
+extern char *str_func;
+
+variable *vmake(uint8_t fromc, uint8_t valtype, void *value)
+{
+	variable *v = (variable *)malloc(sizeof(variable));
+	v->used = 0;
+	v->fromc = fromc;
+	v->valtype = valtype;
+	v->value = 0;
+	v->svalue = 0;
+	switch (valtype) {
+	case STRING:
+		v->value = 0;
+		v->svalue = value;
+		break;
+	case INTEGER:
+		INT(v) = (int32_t)value;
+		isetstr(v);
+		break;
+	case FUNC:
+		v->value = (uint32_t)value;
+		v->svalue = str_func;
+		break;
+	case EXPR:
+		v->value = 0;
+		v->svalue = value;
+		break;
+	}
+	return v;
+}
+
+variable *vmakef(float value)
+{
+	variable *v = (variable *)malloc(sizeof(variable));
+	v->used = 0;
+	v->fromc = 0;
+	v->valtype = FLOAT;
+	FLOAT(v) = value;
+	fsetstr(v);
+	return v;
+}
 
 void fsetstr(variable *f)
 {
@@ -17,7 +58,7 @@ void isetstr(variable *i)
 {
 	if (i->svalue == 0 || i->svalue == str_undef)
 		i->svalue = (char *)malloc(12);
-	snprintf(i->svalue, 12, "%d", INT(i));
+	snprintf(i->svalue, 12, "%d", (int)INT(i));
 }
 
 variable *itostring(variable *v)

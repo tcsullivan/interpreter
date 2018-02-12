@@ -1,7 +1,11 @@
 #include "builtins.h"
 #include "stack.h"
+#include "shelpers.h"
+
+#include <stdlib.h>
 
 extern char *str_func;
+extern char *str_undef;
 
 int ifunc_set(interpreter *it);
 int ifunc_label(interpreter *it);
@@ -10,6 +14,14 @@ int ifunc_if(interpreter *it);
 int ifunc_do(interpreter *it);
 int ifunc_while(interpreter *it);
 int ifunc_ret(interpreter *it);
+
+const func_t indent_up[IUP_COUNT] = {
+	ifunc_if, ifunc_do, ifunc_label
+};
+
+const func_t indent_down[IDOWN_COUNT] = {
+	ifunc_end, ifunc_while
+};
 
 void iload_core(interpreter *interp)
 {
@@ -32,7 +44,9 @@ int ifunc_set(interpreter *it)
 
 	n->valtype = v->valtype;
 	n->value = v->value;
-	n->svalue = v->svalue;
+	if (n->svalue != 0 && n->svalue != str_func && n->svalue != str_undef)
+		free(n->svalue);
+	n->svalue = strclone(v->svalue);
 	return 0;
 }
 
@@ -46,25 +60,26 @@ int ifunc_label(interpreter *it)
 	n->valtype = FUNC;
 	n->value = it->lnidx;
 	n->svalue = str_func;
-	it->indent++;
+	iskip(it);
 	return 0;
 }
 
 int ifunc_if(interpreter *it)
 {
 	int v = igetarg_integer(it, 0);
-	if (v == 0) {
-		it->indent++;
-	} else {
-		void *tmp = ipop(it);
-		ipush(it, (void *)-1);
-		ipush(it, tmp);
-	}
+	if (v == 0)
+		iskip(it);
+	void *tmp = ipop(it);
+	ipush(it, (void *)-1);
+	ipush(it, tmp);
 	return 0;
 }
 
 int ifunc_end(interpreter *it)
 {
+	if (it->stidx == 0)
+		return 0;
+
 	uint32_t lnidx = (uint32_t)ipop(it) + 1;
 	if (lnidx != 0)
 		it->lnidx = lnidx;
@@ -83,8 +98,8 @@ int ifunc_while(interpreter *it)
 	ipop(it);
 	int nidx = (int)ipop(it);
 	if (c != 0) {
-		ipush(it, (void *)nidx);
-		it->lnidx = nidx;
+		//ipush(it, (void *)nidx);
+		it->lnidx = nidx - 1;
 	}
 	ipush(it, 0);
 	return 0;

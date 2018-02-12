@@ -9,7 +9,7 @@
 typedef struct {
 	uint8_t used :1;
 	uint8_t fromc :1;
-	uint8_t valtype :2;
+	uint8_t valtype :4;
 	uint32_t value;
 	char *svalue;
 } variable;
@@ -18,8 +18,12 @@ enum valtype {
 	STRING = 0,
 	INTEGER,
 	FLOAT,
-	FUNC
+	FUNC,
+	EXPR
 };
+
+variable *vmake(uint8_t fromc, uint8_t valtype, void *value);
+variable *vmakef(float value);
 
 void isetstr(variable *i);
 void fsetstr(variable *f);

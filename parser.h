@@ -10,19 +10,25 @@ typedef struct {
 	char **vnames;
 	stack_t *stack;
 	uint32_t stidx;
-	char **lines;
+	variable ***lines;
 	uint32_t lnidx;
-	uint8_t indent;
+	int8_t indent;
+	uint8_t sindent;
 	variable *ret;
 } interpreter;
+
+#define SKIP (1 << 7)
 
 typedef int (*func_t)(interpreter *);
 
 void iinit(interpreter *);
+void iend(interpreter *it);
 
-void inew_string(interpreter *, const char *, char *);
-void inew_integer(interpreter *, const char *, int32_t);
-void inew_float(interpreter *, const char *, float);
+void iskip(interpreter *it);
+
+variable *inew_string(interpreter *, const char *, char *);
+variable *inew_integer(interpreter *, const char *, int32_t);
+variable *inew_float(interpreter *, const char *, float);
 void inew_cfunc(interpreter *, const char *, func_t);
 
 int idoline(interpreter *, const char *);

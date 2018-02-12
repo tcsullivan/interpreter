@@ -14,6 +14,7 @@ char *strnclone(const char *s, uint32_t n)
 {
 	char *clone = (char *)malloc(n + 1);
 	strncpy(clone, s, n);
+	clone[n] = '\0';
 	return clone;
 }
 

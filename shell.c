@@ -59,7 +59,7 @@ int main(int argc, char **argv)
 	}
 
 	iinit(&interp);
-	inew_cfunc(&interp, "put", s_put);
+	inew_cfunc(&interp, "print", s_put);
 	inew_cfunc(&interp, "tp", s_type);
 	inew_cfunc(&interp, "q", quit);
 
@@ -75,5 +75,6 @@ int main(int argc, char **argv)
 	}
 
 	fclose(fp);
+	iend(&interp);
 	return 0;
 }
