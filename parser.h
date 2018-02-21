@@ -32,5 +32,6 @@ variable *inew_float(interpreter *, const char *, float);
 void inew_cfunc(interpreter *, const char *, func_t);
 
 int idoline(interpreter *, const char *);
+variable *idoexpr(interpreter *interp, const char *line);
 
 #endif // PARSER_H_

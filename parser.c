@@ -7,17 +7,18 @@
 
 #include <ctype.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <memory.h>
 #include <string.h>
 
 #define MAX_VARS  48
 #define MAX_STACK 16
 #define MAX_LINES 1000
 
+extern int atoi(const char *);
+extern float strtof(const char *, char **);
+
 char *str_func = "(func)";
 char *str_undef = "(undefined)";
-
-variable *idoexpr(interpreter *interp, const char *line);
 
 void iinit(interpreter *interp)
 {
@@ -222,7 +223,8 @@ int idoline(interpreter *interp, const char *line)
 			skipblank(line, eol, &offset);
 			continue;
 		}
-		ops[ooffset] = make_var(interp, line + offset, &next);
+		variable *v = make_var(interp, line + offset, &next);
+		ops[ooffset] = v;
 		if (ops[ooffset] == 0) {
 			fret = -4;
 			goto fail;
@@ -280,7 +282,8 @@ cont:
 		goto norun;
 
 	ops = (variable **)malloc(8 * sizeof(variable *));
-	memcpy(ops, interp->lines[interp->lnidx], 8 * sizeof(variable *));
+	for (uint8_t i = 0; i < 8; i++)
+		ops[i] = interp->lines[interp->lnidx][i];
 	uint32_t oldLnidx = interp->lnidx;
 	
 	// eval expressions

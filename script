@@ -1,18 +1,15 @@
-func divisible
-	if (arg1 == 0)
-		ret 0
-	end
-	ret (arg0 % arg1)
-end
+set a "Het\n"
+set b a
+print b
 
-set a 0
-set b 4
-do
-	set a (a + 1)
-	divisible a b > i
-	if (i == 0)
-		print a
-	end
-while (a < 100)
-
-print "All done!"
+#set a 0
+#do
+#	print "> "
+#	gets text
+#	set input "("
+#	concat input text
+#	concat input ")"
+#	expr input a
+#	print a
+#	print "\n"
+#while (1)

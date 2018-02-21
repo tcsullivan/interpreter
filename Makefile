@@ -12,6 +12,7 @@ all:
 	$(CC) $(CFLAGS) -c stack.c
 	$(CC) $(CFLAGS) -c ops.c
 	$(CC) $(CFLAGS) -c variable.c
+	$(CC) $(CFLAGS) -c stdlib.c
 	$(AR) r libinterp.a *.o
 	@rm -f *.o
 	#$(CC) $(CFLAGS) shell.c -o shell -L. -l interp

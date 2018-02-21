@@ -2,7 +2,7 @@
 #include "stack.h"
 #include "shelpers.h"
 
-#include <stdlib.h>
+#include <memory.h>
 
 extern char *str_func;
 extern char *str_undef;

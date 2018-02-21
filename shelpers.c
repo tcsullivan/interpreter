@@ -1,6 +1,6 @@
 #include "shelpers.h"
 
-#include <stdlib.h>
+#include <memory.h>
 #include <string.h>
 
 char *strclone(const char *s)

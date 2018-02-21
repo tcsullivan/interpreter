@@ -1,11 +1,32 @@
 #include "variable.h"
 #include "parser.h"
 
-#include <stdio.h>
 #include <stdlib.h>
+#include <memory.h>
+#include <string.h>
+
+extern int atoi(const char *);
 
 extern char *str_undef;
 extern char *str_func;
+
+char *fixstring(char *s)
+{
+	int len = strlen(s);
+	char *n = malloc(len + 1);
+	int i, j;
+	for (i = 0, j = 0; s[i] != '\0'; i++, j++) {
+		if (s[i] == '\\') {
+			if (s[i + 1] == 'n')
+				n[j] = '\n';
+			i++;
+		} else {
+			n[j] = s[i];
+		}
+	}
+	n[j] = '\0';
+	return n;
+}
 
 variable *vmake(uint8_t fromc, uint8_t valtype, void *value)
 {
@@ -18,7 +39,8 @@ variable *vmake(uint8_t fromc, uint8_t valtype, void *value)
 	switch (valtype) {
 	case STRING:
 		v->value = 0;
-		v->svalue = value;
+		v->svalue = fixstring(value);
+		free(value);
 		break;
 	case INTEGER:
 		INT(v) = (int32_t)value;
