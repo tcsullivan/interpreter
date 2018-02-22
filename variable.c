@@ -12,10 +12,9 @@ extern char *str_func;
 
 char *fixstring(char *s)
 {
-	int len = strlen(s);
-	char *n = malloc(len + 1);
-	int i, j;
-	for (i = 0, j = 0; s[i] != '\0'; i++, j++) {
+	char *n = malloc(strlen(s) + 1);
+	int j = 0;
+	for (int i = 0; s[i] != '\0'; i++, j++) {
 		if (s[i] == '\\') {
 			if (s[i + 1] == 'n')
 				n[j] = '\n';

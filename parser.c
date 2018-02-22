@@ -22,21 +22,22 @@ char *str_undef = "(undefined)";
 
 void iinit(interpreter *interp)
 {
-	interp->vars = (variable *)malloc(MAX_VARS * sizeof(variable));
-	interp->vnames = (char **)malloc(MAX_VARS * sizeof(char *));
-	interp->stack = (stack_t *)malloc(MAX_STACK * sizeof(stack_t));
+	interp->vars = (variable *)calloc(MAX_VARS, sizeof(variable));
+	interp->vnames = (char **)calloc(MAX_VARS, sizeof(char *));
+	interp->stack = (stack_t *)calloc(MAX_STACK, sizeof(stack_t));
 	interp->stidx = 0;
-	interp->lines = (variable ***)malloc(MAX_LINES * sizeof(variable **));
+	interp->lines = (variable ***)calloc(MAX_LINES, sizeof(variable **));
 	interp->lnidx = 0;
 	interp->indent = 0;
 	interp->sindent = 0;
+	interp->ret = 0;
 
-	for (unsigned int i = 0; i < MAX_VARS; i++) {
-		interp->vars[i].used = 0;
-		interp->vnames[i] = 0;
-	}
-	for (unsigned int i = 0; i < MAX_LINES; i++)
-		interp->lines[i] = 0;
+	//for (unsigned int i = 0; i < MAX_VARS; i++) {
+	//	interp->vars[i].used = 0;
+	//	interp->vnames[i] = 0;
+	//}
+	//for (unsigned int i = 0; i < MAX_LINES; i++)
+	//	interp->lines[i] = 0;
 
 	iload_core(interp);
 }
@@ -75,7 +76,8 @@ variable *interpreter_get_variable(interpreter *interp, const char *name)
 			v->valtype = STRING;
 			v->value = 0;
 			v->svalue = str_undef;
-			interp->vnames[i] = strclone(name);
+			char *s = strclone(name);
+			interp->vnames[i] = s;
 			return v;
 		} else if (interp->vnames[i] != 0 && !strcmp(interp->vnames[i], name)) {
 			return &interp->vars[i];
@@ -187,9 +189,9 @@ variable *make_var(interpreter *interp, const char *line, uint32_t *next)
 			}
 		}
 		variable *v;
-		if (dec) {
+		if (dec)
 			v = vmakef(strtof(line, 0));
-		} else
+		else
 			v = vmake(0, INTEGER, (void *)atoi(line));
 		*next = end;
 		return v;
@@ -208,7 +210,8 @@ int idoline(interpreter *interp, const char *line)
 	if (line[offset] == '#')
 		return 0;
 
-	interp->lines[interp->lnidx] = (variable **)calloc(8, sizeof(variable *));
+	variable **linebuf = (variable **)calloc(8, sizeof(variable *));
+	interp->lines[interp->lnidx] = linebuf;
 	variable **ops = interp->lines[interp->lnidx];
 
 	// step 1 - convert to tokens
@@ -355,7 +358,7 @@ fail:
 
 variable *idoexpr(interpreter *interp, const char *line)
 {
-	variable *result = (variable *)malloc(sizeof(variable));
+	variable *result = (variable *)calloc(1, sizeof(variable));
 	char *mline = line;
 	void *ops[16];
 	uint32_t ooffset = 0;
@@ -430,9 +433,8 @@ variable *idoexpr(interpreter *interp, const char *line)
 	// step 2 - do operations
 	result->valtype = ((variable *)ops[0])->valtype;
 	result->value = ((variable *)ops[0])->value;
-	for (uint32_t i = 1; i < ooffset; i += 2) {
+	for (uint32_t i = 1; i < ooffset; i += 2)
 		iopfuncs[(uint32_t)ops[i] - 1](result, result, ops[i + 1]);
-	}
 
 	for (uint32_t i = 0; i < ooffset; i += 2) {
 		if (!((variable *)ops[i])->used) {

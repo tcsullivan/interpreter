@@ -8,7 +8,7 @@
 
 void iload_core(interpreter *it);
 
-int ifunc_ret(interpreter *it);
+void iret(interpreter *it, variable *v);
 
 const func_t indent_up[IUP_COUNT];
 const func_t indent_down[IDOWN_COUNT];

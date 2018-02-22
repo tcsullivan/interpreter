@@ -105,9 +105,8 @@ int ifunc_while(interpreter *it)
 	return 0;
 }
 
-int ifunc_ret(interpreter *it)
+void iret(interpreter *it, variable *v)
 {
-	variable *v = igetarg(it, 0);
 	switch (v->valtype) {
 	case INTEGER:
 		inew_integer(it, "RET", INT(v));
@@ -119,7 +118,7 @@ int ifunc_ret(interpreter *it)
 		inew_string(it, "RET", v->svalue);
 		break;
 	default:
-		return -1;
+		return;
 		break;
 	}
 	if (it->ret != 0) {
@@ -128,6 +127,12 @@ int ifunc_ret(interpreter *it)
 		it->ret->svalue = v->svalue;
 		it->ret = 0;
 	}
+}
+
+int ifunc_ret(interpreter *it)
+{
+	variable *v = igetarg(it, 0);
+	iret(it, v);
 	return 0;
 }
 

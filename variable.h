@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#define INT(v)   (*((int32_t *)&v->value))
-#define FLOAT(v) (*((float *)&v->value))
+#define INT(v)   (*((int32_t *)&(v)->value))
+#define FLOAT(v) (*((float *)&(v)->value))
 
 typedef struct {
 	uint8_t used :1;
