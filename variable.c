@@ -37,7 +37,6 @@ variable *vmake(uint8_t fromc, uint8_t valtype, void *value)
 	v->svalue = 0;
 	switch (valtype) {
 	case STRING:
-		v->value = 0;
 		v->svalue = fixstring(value);
 		free(value);
 		break;
@@ -50,7 +49,6 @@ variable *vmake(uint8_t fromc, uint8_t valtype, void *value)
 		v->svalue = str_func;
 		break;
 	case EXPR:
-		v->value = 0;
 		v->svalue = value;
 		break;
 	}
@@ -71,15 +69,15 @@ variable *vmakef(float value)
 void fsetstr(variable *f)
 {
 	if (f->svalue == 0 || f->svalue == str_undef)
-		f->svalue = (char *)malloc(16);
-	snprintf(f->svalue, 16, "%f", FLOAT(f));
+		f->svalue = (char *)malloc(32);
+	snprintf(f->svalue, 32, "%f", FLOAT(f));
 }
 
 void isetstr(variable *i)
 {
 	if (i->svalue == 0 || i->svalue == str_undef)
-		i->svalue = (char *)malloc(12);
-	snprintf(i->svalue, 12, "%d", (int)INT(i));
+		i->svalue = (char *)malloc(32);
+	snprintf(i->svalue, 32, "%d", (int)INT(i));
 }
 
 variable *itostring(variable *v)

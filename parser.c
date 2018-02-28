@@ -10,8 +10,8 @@
 #include <memory.h>
 #include <string.h>
 
-#define MAX_VARS  48
-#define MAX_STACK 16
+#define MAX_VARS  64
+#define MAX_STACK 32
 #define MAX_LINES 1000
 
 extern int atoi(const char *);
@@ -31,13 +31,6 @@ void iinit(interpreter *interp)
 	interp->indent = 0;
 	interp->sindent = 0;
 	interp->ret = 0;
-
-	//for (unsigned int i = 0; i < MAX_VARS; i++) {
-	//	interp->vars[i].used = 0;
-	//	interp->vnames[i] = 0;
-	//}
-	//for (unsigned int i = 0; i < MAX_LINES; i++)
-	//	interp->lines[i] = 0;
 
 	iload_core(interp);
 }
@@ -188,11 +181,15 @@ variable *make_var(interpreter *interp, const char *line, uint32_t *next)
 				}
 			}
 		}
+		char *copy = (char *)malloc(end + 1);
+		strncpy(copy, line, end);
+		copy[end] = '\0';
 		variable *v;
 		if (dec)
-			v = vmakef(strtof(line, 0));
+			v = vmakef(strtof(copy, 0));
 		else
-			v = vmake(0, INTEGER, (void *)atoi(line));
+			v = vmake(0, INTEGER, (void *)atoi(copy));
+		free(copy);
 		*next = end;
 		return v;
 	}
@@ -207,7 +204,7 @@ int idoline(interpreter *interp, const char *line)
 	if (line[0] == '\0')
 		return 0;
 	skipblank(line, eol, &offset);
-	if (line[offset] == '#')
+	if (line[offset] == '#' || eol(line[offset]))
 		return 0;
 
 	variable **linebuf = (variable **)calloc(8, sizeof(variable *));
@@ -292,9 +289,16 @@ cont:
 	// eval expressions
 	ooffset = 1;
 	for (; ops[ooffset] != 0 && ops[ooffset] != (void *)-1; ooffset++) {
-		if (ops[ooffset]->valtype == EXPR)
-			ops[ooffset] = idoexpr(interp, ops[ooffset]->svalue);
+		if (ops[ooffset]->valtype == EXPR) {
+			char *expr = strclone(ops[ooffset]->svalue);
+			variable *r = idoexpr(interp, expr);
+			ops[ooffset] = r;
+			free(expr);
+		}
 	}
+
+	if (ops[ooffset] == (void *)-1)
+		interp->ret = ops[ooffset + 1];
 
 	if (ops[0]->fromc) {
 		for (uint32_t i = ooffset; --i > 0;)
@@ -328,9 +332,6 @@ cont:
 		interp->indent++;
 	}
 
-	if (ops[ooffset] == (void *)-1)
-		interp->ret = ops[ooffset + 1];
-
 	if ((int32_t)interp->stidx < 0) {
 		interp->stidx = 0;
 		return -5;
@@ -358,12 +359,10 @@ fail:
 
 variable *idoexpr(interpreter *interp, const char *line)
 {
-	variable *result = (variable *)calloc(1, sizeof(variable));
-	char *mline = line;
 	void *ops[16];
 	uint32_t ooffset = 0;
 	uint32_t offset = 0;
-	uint32_t next;
+	uint32_t next = 0;
 
 	// step 1 - break apart line
 
@@ -389,16 +388,15 @@ variable *idoexpr(interpreter *interp, const char *line)
 			ops[ooffset] = idoexpr(interp, line + offset + 1);
 			offset = i + 1;
 		} else {
-			uint32_t end = offset;
-			char cend;
-			if (line[offset] != '\"') {
-				for (; isalnum(line[end]) || line[end] == '.'; end++);
-				cend = line[end];
-				mline[end] = ' ';
-			}
-			ops[ooffset] = make_var(interp, line + offset, &next);
-			if (end != 0)
-				mline[end] = cend;
+			uint32_t len = offset;
+			for (; isalnum(line[len]) || line[len] == '.'; len++);
+			len -= offset;
+			char *copy = (char *)malloc(len + 1);
+			strncpy(copy, line + offset, len);
+			copy[len] = '\0';
+			variable *v = make_var(interp, copy, &next);
+			free(copy);
+			ops[ooffset] = v;
 			offset += next;
 		}
 		if (ops[ooffset] == 0)
@@ -431,10 +429,16 @@ variable *idoexpr(interpreter *interp, const char *line)
 		return 0;
 
 	// step 2 - do operations
+	variable *result = (variable *)calloc(1, sizeof(variable));
 	result->valtype = ((variable *)ops[0])->valtype;
 	result->value = ((variable *)ops[0])->value;
 	for (uint32_t i = 1; i < ooffset; i += 2)
 		iopfuncs[(uint32_t)ops[i] - 1](result, result, ops[i + 1]);
+	
+	if (result->valtype == INTEGER)
+		isetstr(result);
+	else
+		fsetstr(result);
 
 	for (uint32_t i = 0; i < ooffset; i += 2) {
 		if (!((variable *)ops[i])->used) {
@@ -444,13 +448,6 @@ variable *idoexpr(interpreter *interp, const char *line)
 			free(ops[i]);
 		}
 	}
-	
-	result->used = 0;
-	result->svalue = 0;
-	if (result->valtype == INTEGER)
-		isetstr(result);
-	else
-		fsetstr(result);
 
 	return result;
 }

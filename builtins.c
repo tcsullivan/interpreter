@@ -94,13 +94,15 @@ int ifunc_do(interpreter *it)
 
 int ifunc_while(interpreter *it)
 {
-	int c = igetarg_integer(it, 0);
+	//int c = igetarg_integer(it, 0);
 	ipop(it);
 	int nidx = (int)ipop(it);
-	if (c != 0) {
+	//if (c != 0) {
 		//ipush(it, (void *)nidx);
 		it->lnidx = nidx - 1;
-	}
+	//} else {
+	//	c++;
+	//}
 	ipush(it, 0);
 	return 0;
 }

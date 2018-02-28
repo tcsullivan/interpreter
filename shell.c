@@ -3,9 +3,12 @@
 
 #include "stack.h"
 
+#include <memory.h>
 #include <stdio.h>
-#include <stdlib.h>
+//#include <stdlib.h>
 #include <string.h>
+
+extern int rand(void);
 
 int s_put(interpreter *it)
 {
@@ -60,25 +63,21 @@ int concat(interpreter *it)
 	return 0;
 }
 
-int quit(interpreter *it)
+int script_rand(interpreter *it)
 {
-	(void)it;
-	exit(0);
+	static variable v;
+	v.valtype = INTEGER;
+	unsigned int mod = igetarg_integer(it, 0);
+	unsigned int val = rand();
+	INT(&v) = val % mod;
+	isetstr(&v);
+	iret(it, &v);
 	return 0;
 }
 
-int expr(interpreter *it)
+int line(interpreter *it)
 {
-	variable *v = igetarg(it, 0);
-	variable *r = igetarg(it, 1);
-	int len = strlen(v->svalue);
-	char *s = malloc(len + 1);
-	strcpy(s, v->svalue);
-	s[len] = 0;
-	variable *q = idoexpr(it, s);
-	r->valtype = q->valtype;
-	r->value = q->value;
-	r->svalue = q->svalue;
+	(void)it;
 	return 0;
 }
 
@@ -100,10 +99,10 @@ int main(int argc, char **argv)
 	iinit(&interp);
 	inew_cfunc(&interp, "print", s_put);
 	inew_cfunc(&interp, "tp", s_type);
-	inew_cfunc(&interp, "q", quit);
 	inew_cfunc(&interp, "gets", input);
 	inew_cfunc(&interp, "concat", concat);
-	inew_cfunc(&interp, "expr", expr);
+	inew_cfunc(&interp, "rand", script_rand);
+	inew_cfunc(&interp, "line", line);
 
 
 	char *line = 0;

@@ -4,6 +4,6 @@
 char *snprintf(char *buf, unsigned int max, const char *format, ...);
 float strtof(const char *s, char **endptr);
 
-extern int atoi(const char *);
+int atoi(const char *);
 
 #endif // STDLIB_H_
