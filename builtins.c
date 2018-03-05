@@ -94,15 +94,13 @@ int ifunc_do(interpreter *it)
 
 int ifunc_while(interpreter *it)
 {
-	//int c = igetarg_integer(it, 0);
+	int c = igetarg_integer(it, 0);
 	ipop(it);
 	int nidx = (int)ipop(it);
-	//if (c != 0) {
+	if (c != 0) {
 		//ipush(it, (void *)nidx);
 		it->lnidx = nidx - 1;
-	//} else {
-	//	c++;
-	//}
+	}
 	ipush(it, 0);
 	return 0;
 }
@@ -126,7 +124,10 @@ void iret(interpreter *it, variable *v)
 	if (it->ret != 0) {
 		it->ret->valtype = v->valtype;
 		it->ret->value = v->value;
-		it->ret->svalue = v->svalue;
+		char *s = it->ret->svalue;
+		if (s != 0 && s != str_undef)
+			free(s);
+		it->ret->svalue = strclone(v->svalue);
 		it->ret = 0;
 	}
 }

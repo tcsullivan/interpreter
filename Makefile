@@ -16,4 +16,4 @@ all:
 	$(CC) $(CFLAGS) -c variable.c
 	$(AR) r libinterp.a *.o
 	@rm -f *.o
-	#$(CC) $(CFLAGS) shell.c *.o -o shell #-L. -l interp
+	#$(CC) $(CFLAGS) shell.c *.o -o shell

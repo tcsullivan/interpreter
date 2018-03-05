@@ -39,9 +39,9 @@ void iend(interpreter *it)
 {
 	for (unsigned int i = 0; i < MAX_VARS; i++) {
 		if (it->vars[i].used == 1) {
-			char *s = it->vars[i].svalue;
-			if (s != 0 && s != str_undef && s != str_func)
-				free(s);
+			//char *s = it->vars[i].svalue;
+			//if (s != 0 && s != str_undef && s != str_func)
+			//	free(s);
 			free(it->vnames[i]);
 		}
 	}
