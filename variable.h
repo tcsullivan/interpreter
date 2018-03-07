@@ -3,33 +3,26 @@
 
 #include <stdint.h>
 
-#define INT(v)   (*((int32_t *)&(v)->value))
-#define FLOAT(v) (*((float *)&(v)->value))
-
 typedef struct {
 	uint8_t used :1;
 	uint8_t fromc :1;
 	uint8_t valtype :4;
-	uint32_t value;
-	char *svalue;
+	union {
+		float f;
+		uint32_t p;
+	} value;
 } variable;
 
 enum valtype {
 	STRING = 0,
-	INTEGER,
-	FLOAT,
+	NUMBER,
 	FUNC,
 	EXPR
 };
 
-variable *vmake(uint8_t fromc, uint8_t valtype, void *value);
-variable *vmakef(float value);
-
-void isetstr(variable *i);
-void fsetstr(variable *f);
-
-variable *itostring(variable *v);
-variable *itoint(variable *v);
-variable *itofloat(variable *v);
+variable *make_varn(variable *v, float value);
+variable *make_vars(variable *v, const char *s);
+variable *make_varf(variable *v, uint8_t fromc, uint32_t func);
+variable *make_vare(variable *v, const char *e);
 
 #endif // VARIABLE_H_

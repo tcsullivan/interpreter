@@ -26,10 +26,9 @@ void iend(interpreter *it);
 
 void iskip(interpreter *it);
 
-variable *inew_string(interpreter *, const char *, char *);
-variable *inew_integer(interpreter *, const char *, int32_t);
-variable *inew_float(interpreter *, const char *, float);
-void inew_cfunc(interpreter *, const char *, func_t);
+variable *inew_string(interpreter *, const char *, const char *);
+variable *inew_number(interpreter *, const char *, float);
+variable *inew_cfunc(interpreter *, const char *, func_t);
 
 int idoline(interpreter *, const char *);
 variable *idoexpr(interpreter *interp, const char *line);

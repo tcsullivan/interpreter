@@ -32,136 +32,81 @@ operation_t iopfuncs[IOPS_COUNT] = {
 
 void iop_add(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) + INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) + FLOAT(b);
-	}
+	r->value.f = a->value.f + b->value.f;
 }
 
 void iop_sub(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) - INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) - FLOAT(b);
-	}
+	r->value.f = a->value.f - b->value.f;
 }
 
 void iop_mult(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) * INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) * FLOAT(b);
-	}
+	r->value.f = a->value.f * b->value.f;
 }
 
 void iop_div(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) / INT(b);
-	} else {
-		itofloat(a);
-		itofloat(b);
-		FLOAT(r) = FLOAT(a) / FLOAT(b);
-	}
+	r->value.f = a->value.f / b->value.f;
 }
 
 void iop_and(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) & INT(b);
-	}
+	r->value.f = (float)((int)a->value.f & (int)b->value.f);
 }
 
 void iop_or(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) | INT(b);
-	}
+	r->value.f = (float)((int)a->value.f | (int)b->value.f);
 }
 
 void iop_xor(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) ^ INT(b);
-	}
+	r->value.f = (float)((int)a->value.f ^ (int)b->value.f);
 }
 
 void iop_shr(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) >> INT(b);
-	}
+	r->value.f = (float)((int)a->value.f >> (int)b->value.f);
 }
 
 void iop_shl(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER) {
-		INT(r) = INT(a) << INT(b);
-	}
+	r->value.f = (float)((int)a->value.f << (int)b->value.f);
 }
 
 void iop_eq(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) == INT(b);
-	else
-		INT(r) = FLOAT(a) == FLOAT(b);
+	r->value.f = a->value.f == b->value.f;
 }
 
 void iop_lt(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) < INT(b);
-	else
-		INT(r) = FLOAT(a) < FLOAT(b);
+	r->value.f = a->value.f < b->value.f;
 }
 
 void iop_gt(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) > INT(b);
-	else
-		INT(r) = FLOAT(a) > FLOAT(b);
+	r->value.f = a->value.f > b->value.f;
 }
 
 void iop_lte(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) <= INT(b);
-	else
-		INT(r) = FLOAT(a) <= FLOAT(b);
+	r->value.f = a->value.f <= b->value.f;
 }
 
 void iop_gte(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) >= INT(b);
-	else
-		INT(r) = FLOAT(a) >= FLOAT(b);
+	r->value.f = a->value.f >= b->value.f;
 }
 
 void iop_ne(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) != INT(b);
-	else
-		INT(r) = FLOAT(a) != FLOAT(b);
+	r->value.f = a->value.f != b->value.f;
 }
 
 void iop_mod(variable *r, variable *a, variable *b)
 {
-	if (a->valtype == INTEGER && b->valtype == INTEGER)
-		INT(r) = INT(a) % INT(b);
-	else
-		INT(r) = 0;
+	r->value.f = (float)((int)a->value.f % (int)b->value.f);
 }
 

@@ -3,9 +3,7 @@
 #include "shelpers.h"
 
 #include <memory.h>
-
-extern char *str_func;
-extern char *str_undef;
+#include <string.h>
 
 int ifunc_set(interpreter *it);
 int ifunc_label(interpreter *it);
@@ -42,11 +40,10 @@ int ifunc_set(interpreter *it)
 	if (n == 0)
 		return -1;
 
+	if (n->valtype == STRING)
+		free((void *)n->value.p);
 	n->valtype = v->valtype;
-	n->value = v->value;
-	if (n->svalue != 0 && n->svalue != str_func && n->svalue != str_undef)
-		free(n->svalue);
-	n->svalue = strclone(v->svalue);
+	n->value.p = v->value.p;
 	return 0;
 }
 
@@ -58,15 +55,14 @@ int ifunc_label(interpreter *it)
 		return -1;
 
 	n->valtype = FUNC;
-	n->value = it->lnidx;
-	n->svalue = str_func;
+	n->value.p = it->lnidx;
 	iskip(it);
 	return 0;
 }
 
 int ifunc_if(interpreter *it)
 {
-	int v = igetarg_integer(it, 0);
+	int v = igetarg(it, 0)->value.p;
 	if (v == 0)
 		iskip(it);
 	void *tmp = ipop(it);
@@ -94,7 +90,7 @@ int ifunc_do(interpreter *it)
 
 int ifunc_while(interpreter *it)
 {
-	int c = igetarg_integer(it, 0);
+	int c = igetarg(it, 0)->value.p;
 	ipop(it);
 	int nidx = (int)ipop(it);
 	if (c != 0) {
@@ -108,26 +104,21 @@ int ifunc_while(interpreter *it)
 void iret(interpreter *it, variable *v)
 {
 	switch (v->valtype) {
-	case INTEGER:
-		inew_integer(it, "RET", INT(v));
-		break;
-	case FLOAT:
-		inew_float(it, "RET", FLOAT(v));
+	case NUMBER:
+		inew_number(it, "RET", v->value.f);
 		break;
 	case STRING:
-		inew_string(it, "RET", v->svalue);
+		inew_string(it, "RET", (char *)v->value.p);
 		break;
 	default:
 		return;
 		break;
 	}
 	if (it->ret != 0) {
+		if (it->ret->valtype == STRING && it->ret->value.p != 0)
+			free((void *)it->ret->value.p);
 		it->ret->valtype = v->valtype;
-		it->ret->value = v->value;
-		char *s = it->ret->svalue;
-		if (s != 0 && s != str_undef)
-			free(s);
-		it->ret->svalue = strclone(v->svalue);
+		it->ret->value.p = v->value.p;
 		it->ret = 0;
 	}
 }

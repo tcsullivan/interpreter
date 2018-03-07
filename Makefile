@@ -7,13 +7,17 @@ CFLAGS = -Wall -Wextra -Werror -pedantic \
 	-Wno-discarded-qualifiers \
 	-I. -fsigned-char -fno-builtin -ggdb
 
-all:
-	$(CC) $(CFLAGS) -c shelpers.c
-	$(CC) $(CFLAGS) -c parser.c
-	$(CC) $(CFLAGS) -c builtins.c
-	$(CC) $(CFLAGS) -c stack.c
-	$(CC) $(CFLAGS) -c ops.c
-	$(CC) $(CFLAGS) -c variable.c
-	$(AR) r libinterp.a *.o
-	@rm -f *.o
-	#$(CC) $(CFLAGS) shell.c *.o -o shell
+FILES = $(wildcard *.c)
+OUTFILES = $(patsubst %.c, %.o, $(FILES))
+
+all: $(OUTFILES)
+	@#$(CC) $(CFLAGS) *.o -o shell
+	@$(AR) r libinterp.a *.o
+
+clean:
+	@echo "  CLEAN"
+	@rm -f *.o shell libinterp.a
+
+%.o: %.c
+	@echo "  CC     " $<
+	@$(CC) $(CFLAGS) -c $< -o $@
