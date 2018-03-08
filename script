@@ -1,15 +1,7 @@
-set a "Het\n"
-set b a
-print b
+set x 42
+set eq ".a/a"
 
-#set a 0
-#do
-#	print "> "
-#	gets text
-#	set input "("
-#	concat input text
-#	concat input ")"
-#	expr input a
-#	print a
-#	print "\n"
-#while (1)
+solve eq > ans
+
+print ans
+print "\n"

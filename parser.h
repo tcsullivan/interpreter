@@ -22,15 +22,15 @@ typedef struct {
 typedef int (*func_t)(interpreter *);
 
 void iinit(interpreter *);
-void iend(interpreter *it);
+void iend(interpreter *);
 
-void iskip(interpreter *it);
+void iskip(interpreter *);
 
 variable *inew_string(interpreter *, const char *, const char *);
 variable *inew_number(interpreter *, const char *, float);
 variable *inew_cfunc(interpreter *, const char *, func_t);
 
 int idoline(interpreter *, const char *);
-variable *idoexpr(interpreter *interp, const char *line);
+variable *idoexpr(interpreter *, const char *);
 
 #endif // PARSER_H_

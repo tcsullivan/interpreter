@@ -25,4 +25,7 @@ variable *make_vars(variable *v, const char *s);
 variable *make_varf(variable *v, uint8_t fromc, uint32_t func);
 variable *make_vare(variable *v, const char *e);
 
+int try_number(variable *v, const char *text);
+int try_variable(char **name, const char *text);
+
 #endif // VARIABLE_H_

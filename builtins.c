@@ -13,6 +13,7 @@ int ifunc_do(interpreter *it);
 int ifunc_while(interpreter *it);
 int ifunc_ret(interpreter *it);
 int ifunc_else(interpreter *it);
+int ifunc_solve(interpreter *it);
 
 const func_t indent_up[IUP_COUNT] = {
 	ifunc_if, ifunc_do, ifunc_label
@@ -32,6 +33,24 @@ void iload_core(interpreter *interp)
 	inew_cfunc(interp, "while", ifunc_while);
 	inew_cfunc(interp, "ret", ifunc_ret);
 	inew_cfunc(interp, "else", ifunc_else);
+	inew_cfunc(interp, "solve", ifunc_solve);
+}
+
+int ifunc_solve(interpreter *it)
+{
+	const char *expr = igetarg_string(it, 0);
+	int len = strlen(expr);
+	char *buf = (char *)malloc(len + 2);
+	strcpy(buf, expr);
+	buf[len] = ')';
+	buf[len + 1] = '\0';
+	variable *r = idoexpr(it, buf);
+	free(buf);
+	if (r == 0)
+		r = make_varn(0, 0.0f);
+	iret(it, r);
+	free(r);
+	return 0;
 }
 
 int ifunc_set(interpreter *it)
