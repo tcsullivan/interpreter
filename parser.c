@@ -10,7 +10,7 @@
 #include <memory.h>
 #include <string.h>
 
-#define MAX_VARS  64
+#define MAX_VARS  100
 #define MAX_STACK 32
 #define MAX_LINES 1000
 
@@ -100,9 +100,9 @@ variable *inew_string(interpreter *interp, const char *name, const char *value)
 {
 	variable *v = interpreter_get_variable(interp, name);
 	if (v != 0) {
-		v->valtype = STRING;
-		if (v->value.p != 0)
+		if (v->valtype == STRING && v->value.p != 0)
 			free((void *)v->value.p);
+		v->valtype = STRING;
 		v->value.p = (uint32_t)strclone(value);
 	}
 	return v;
@@ -326,7 +326,9 @@ cont:
 			}
 		}
 
-		ipush(interp, (void *)(interp->lnidx));
+		ipush(interp, (void *)(uint32_t)interp->indent);
+		ipush(interp, (void *)interp->lnidx);
+		ipush(interp, (void *)-2); // magic
 		interp->lnidx = ops[0]->value.p;
 		interp->indent++;
 	}
@@ -365,6 +367,8 @@ variable *idoexpr(interpreter *interp, const char *line)
 	uint32_t next = 0;
 
 	// step 1 - break apart line
+	for (uint8_t i = 0; i < 16; i++)
+		ops[i] = 0;
 
 	// skip whitespace
 	skipblank(line, eol, &offset);
@@ -429,20 +433,51 @@ variable *idoexpr(interpreter *interp, const char *line)
 		return 0;
 
 	// step 2 - do operations
-	variable *result = (variable *)calloc(1, sizeof(variable));
-	result->valtype = ((variable *)ops[0])->valtype;
-	result->value.p = ((variable *)ops[0])->value.p;
-	for (uint32_t i = 1; i < ooffset; i += 2)
-		iopfuncs[(uint32_t)ops[i] - 1](result, result, ops[i + 1]);
-	
-	for (uint32_t i = 0; i < ooffset; i += 2) {
-		variable *v = (variable *)ops[i];
-		if (!v->used) {
-			if (v->valtype == STRING || v->valtype == EXPR)
-				free((void *)v->value.p);
-			free(ops[i]);
+	// for every operator, ordered by importance
+	for (uint32_t i = 0; i < IOPS_COUNT; i++) {
+		// find instances of the operation
+		for (uint32_t j = 1; j < ooffset; j += 2) {
+			// if a match
+			if ((uint32_t)ops[j] == i + 1) {
+				// find args
+				uint32_t ai = j - 1;
+				uint32_t bi = j + 1;
+				while (ops[ai] == 0)
+					ai--;
+				while (ops[bi] == 0)
+					bi++;
+
+				variable *r = (variable *)calloc(1, sizeof(variable));
+				iopfuncs[i](r, ops[ai], ops[bi]);
+
+				variable *v = (variable *)ops[ai];
+				if (!v->used)
+					free(v);
+				ops[ai] = r;
+				v = (variable *)ops[bi];
+				if (!v->used)
+					free(v);
+				ops[bi] = 0;
+				ops[j] = 0;
+			}
 		}
 	}
+
+	variable *result = make_varn(0, ((variable *)ops[0])->value.f);
+	if (!((variable *)ops[0])->used)
+		free(ops[0]);
+
+	//for (uint32_t i = 1; i < ooffset; i += 2)
+	//	iopfuncs[(uint32_t)ops[i] - 1](result, result, ops[i + 1]);
+	
+	//for (uint32_t i = 0; i < ooffset; i += 2) {
+	//	variable *v = (variable *)ops[i];
+	//	if (!v->used) {
+	//		if (v->valtype == STRING || v->valtype == EXPR)
+	//			free((void *)v->value.p);
+	//		free(ops[i]);
+	//	}
+	//}
 
 	return result;
 }

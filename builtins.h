@@ -4,7 +4,7 @@
 #include "parser.h"
 
 #define IUP_COUNT 3
-#define IDOWN_COUNT 2
+#define IDOWN_COUNT 3
 
 void iload_core(interpreter *it);
 

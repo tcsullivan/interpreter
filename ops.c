@@ -1,5 +1,7 @@
 #include "ops.h"
 
+#include <string.h>
+
 void iop_add(variable *, variable *, variable *);
 void iop_sub(variable *, variable *, variable *);
 void iop_mult(variable *, variable *, variable *);
@@ -18,15 +20,15 @@ void iop_ne(variable *, variable *, variable *);
 void iop_mod(variable *, variable *, variable *);
 
 char *iops[IOPS_COUNT] = {
-	"+", "-", "*", "/", "&", "|", "^", ">>", "<<",
-	"==", "<", ">", "<=", ">=", "!=", "%"
+	"*", "/", "%", "+", "-", "<<", ">>", "<=",
+	"<", ">=", ">", "==", "!=", "&", "^", "|"
 };
 
 operation_t iopfuncs[IOPS_COUNT] = {
-	iop_add, iop_sub, iop_mult, iop_div, iop_and,
-	iop_or, iop_xor, iop_shr, iop_shl,
-	iop_eq, iop_lt, iop_gt, iop_lte, iop_gte, iop_ne,
-	iop_mod
+	iop_mult, iop_div, iop_mod, iop_add, iop_sub,
+	iop_shl, iop_shr, iop_lte, iop_lt, iop_gte,
+	iop_gt, iop_eq, iop_ne, iop_and, iop_xor,
+	iop_or
 };
 
 
@@ -77,7 +79,10 @@ void iop_shl(variable *r, variable *a, variable *b)
 
 void iop_eq(variable *r, variable *a, variable *b)
 {
-	r->value.f = a->value.f == b->value.f;
+	if (a->valtype == STRING && b->valtype == STRING)
+		r->value.f = (float)!strcmp((char *)a->value.p, (char *)b->value.p);
+	else
+		r->value.f = a->value.f == b->value.f;
 }
 
 void iop_lt(variable *r, variable *a, variable *b)

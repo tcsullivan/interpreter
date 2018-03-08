@@ -12,13 +12,14 @@ int ifunc_if(interpreter *it);
 int ifunc_do(interpreter *it);
 int ifunc_while(interpreter *it);
 int ifunc_ret(interpreter *it);
+int ifunc_else(interpreter *it);
 
 const func_t indent_up[IUP_COUNT] = {
 	ifunc_if, ifunc_do, ifunc_label
 };
 
 const func_t indent_down[IDOWN_COUNT] = {
-	ifunc_end, ifunc_while
+	ifunc_else, ifunc_end, ifunc_while, 
 };
 
 void iload_core(interpreter *interp)
@@ -30,6 +31,7 @@ void iload_core(interpreter *interp)
 	inew_cfunc(interp, "do", ifunc_do);
 	inew_cfunc(interp, "while", ifunc_while);
 	inew_cfunc(interp, "ret", ifunc_ret);
+	inew_cfunc(interp, "else", ifunc_else);
 }
 
 int ifunc_set(interpreter *it)
@@ -65,9 +67,10 @@ int ifunc_if(interpreter *it)
 	int v = igetarg(it, 0)->value.p;
 	if (v == 0)
 		iskip(it);
-	void *tmp = ipop(it);
+	void *arg = ipop(it);
+	ipush(it, (void *)v);
 	ipush(it, (void *)-1);
-	ipush(it, tmp);
+	ipush(it, arg);
 	return 0;
 }
 
@@ -77,8 +80,33 @@ int ifunc_end(interpreter *it)
 		return 0;
 
 	uint32_t lnidx = (uint32_t)ipop(it) + 1;
-	if (lnidx != 0)
+	if (lnidx == 0) { // from an if, have conditional
+		ipop(it); // whatever
+	} else {
+		if (lnidx == (uint32_t)-1) {
+			// script-func call
+			lnidx = (uint32_t)ipop(it);
+			it->indent = (uint32_t)ipop(it);
+		}
 		it->lnidx = lnidx;
+	}
+	return 0;
+}
+
+int ifunc_else(interpreter *it)
+{
+	if (it->stidx == 0)
+		return 0;
+
+	ipop(it); // the -1
+	int cond = (int)ipop(it);
+	it->indent++;
+	if (cond != 0)
+		iskip(it);
+	// otherwise it's whatever?
+	ipush(it, 0);
+	ipush(it, (void *)-1);
+
 	return 0;
 }
 
