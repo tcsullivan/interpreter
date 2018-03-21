@@ -1,117 +1,197 @@
 #include "ops.h"
 
+#include <stdlib.h>
 #include <string.h>
 
-void iop_add(variable *, variable *, variable *);
-void iop_sub(variable *, variable *, variable *);
-void iop_mult(variable *, variable *, variable *);
-void iop_div(variable *, variable *, variable *);
-void iop_and(variable *, variable *, variable *);
-void iop_or(variable *, variable *, variable *);
-void iop_xor(variable *, variable *, variable *);
-void iop_shr(variable *, variable *, variable *);
-void iop_shl(variable *, variable *, variable *);
-void iop_eq(variable *, variable *, variable *);
-void iop_lt(variable *, variable *, variable *);
-void iop_gt(variable *, variable *, variable *);
-void iop_lte(variable *, variable *, variable *);
-void iop_gte(variable *, variable *, variable *);
-void iop_ne(variable *, variable *, variable *);
-void iop_mod(variable *, variable *, variable *);
+#define OP_DEF(o) int op_##o(variable *r, variable *a, variable *b)
+#define OP_VAR(o) {0, OPERATOR, 0, {.p = (uint32_t)op_##o}}
+#define OP_NONE   {0, OPERATOR, 0, {.p = 0x0BADCAFE}}
 
-char *iops[IOPS_COUNT] = {
-	"*", "/", "%", "+", "-", "<<", ">>", "<=",
-	"<", ">=", ">", "==", "!=", "&", "^", "|"
+extern char *strclone(const char *s);
+
+OP_DEF(mul);
+OP_DEF(div);
+OP_DEF(mod);
+OP_DEF(add);
+OP_DEF(sub);
+OP_DEF(shl);
+OP_DEF(shr);
+OP_DEF(lte);
+OP_DEF(lt);
+OP_DEF(gte);
+OP_DEF(gt);
+OP_DEF(eq);
+OP_DEF(ne);
+OP_DEF(and);
+OP_DEF(xor);
+OP_DEF(or);
+OP_DEF(set);
+
+variable opvars[] = {
+	OP_VAR(mul), OP_VAR(div), OP_VAR(mod), OP_NONE,
+	OP_VAR(add), OP_VAR(sub), OP_VAR(shl), OP_VAR(shr),
+	OP_VAR(lte), OP_VAR(lt), OP_VAR(gte), OP_VAR(gt),
+	OP_VAR(eq), OP_VAR(ne), OP_VAR(and), OP_VAR(xor),
+	OP_VAR(or), OP_VAR(set)
 };
 
-operation_t iopfuncs[IOPS_COUNT] = {
-	iop_mult, iop_div, iop_mod, iop_add, iop_sub,
-	iop_shl, iop_shr, iop_lte, iop_lt, iop_gte,
-	iop_gt, iop_eq, iop_ne, iop_and, iop_xor,
-	iop_or
+const char *opnames[] = {
+	"*", "/", "%", 0,
+	"+", "-", "<<", ">>",
+	"<=", "<", ">=", ">",
+	"==", "!=", "&", "^",
+	"|", "=" 
 };
 
-
-void iop_add(variable *r, variable *a, variable *b)
+OP_DEF(mul)
 {
-	r->value.f = a->value.f + b->value.f;
-}
-
-void iop_sub(variable *r, variable *a, variable *b)
-{
-	r->value.f = a->value.f - b->value.f;
-}
-
-void iop_mult(variable *r, variable *a, variable *b)
-{
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
 	r->value.f = a->value.f * b->value.f;
+	return 0;
 }
-
-void iop_div(variable *r, variable *a, variable *b)
+OP_DEF(div)
 {
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
 	r->value.f = a->value.f / b->value.f;
+	return 0;
 }
-
-void iop_and(variable *r, variable *a, variable *b)
+OP_DEF(mod)
 {
-	r->value.f = (float)((int)a->value.f & (int)b->value.f);
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = (int)a->value.f % (int)b->value.f;
+	return 0;
 }
-
-void iop_or(variable *r, variable *a, variable *b)
+OP_DEF(add)
 {
-	r->value.f = (float)((int)a->value.f | (int)b->value.f);
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = a->value.f + b->value.f;
+	return 0;
 }
-
-void iop_xor(variable *r, variable *a, variable *b)
+OP_DEF(sub)
 {
-	r->value.f = (float)((int)a->value.f ^ (int)b->value.f);
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = a->value.f - b->value.f;
+	return 0;
 }
-
-void iop_shr(variable *r, variable *a, variable *b)
+OP_DEF(shl)
 {
-	r->value.f = (float)((int)a->value.f >> (int)b->value.f);
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = (int)a->value.f << (int)b->value.f;
+	return 0;
 }
-
-void iop_shl(variable *r, variable *a, variable *b)
+OP_DEF(shr)
 {
-	r->value.f = (float)((int)a->value.f << (int)b->value.f);
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = (int)a->value.f >> (int)b->value.f;
+	return 0;
 }
-
-void iop_eq(variable *r, variable *a, variable *b)
+OP_DEF(lte)
 {
-	if (a->valtype == STRING && b->valtype == STRING)
-		r->value.f = (float)!strcmp((char *)a->value.p, (char *)b->value.p);
-	else
-		r->value.f = a->value.f == b->value.f;
-}
-
-void iop_lt(variable *r, variable *a, variable *b)
-{
-	r->value.f = a->value.f < b->value.f;
-}
-
-void iop_gt(variable *r, variable *a, variable *b)
-{
-	r->value.f = a->value.f > b->value.f;
-}
-
-void iop_lte(variable *r, variable *a, variable *b)
-{
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
 	r->value.f = a->value.f <= b->value.f;
+	return 0;
 }
-
-void iop_gte(variable *r, variable *a, variable *b)
+OP_DEF(lt)
 {
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = a->value.f < b->value.f;
+	return 0;
+}
+OP_DEF(gte)
+{
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
 	r->value.f = a->value.f >= b->value.f;
+	return 0;
 }
-
-void iop_ne(variable *r, variable *a, variable *b)
+OP_DEF(gt)
 {
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = a->value.f > b->value.f;
+	return 0;
+}
+OP_DEF(eq)
+{
+	r->type = NUMBER;
+	if (a->type == NUMBER && b->type == NUMBER)
+		r->value.f = a->value.f == b->value.f;
+	else if (a->type == STRING && b->type == STRING)
+		r->value.f = !strcmp((const char *)a->value.p, (const char *)b->value.p);
+	else
+		return -1;
+
+	return 0;
+}
+OP_DEF(ne)
+{
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
 	r->value.f = a->value.f != b->value.f;
+	return 0;
 }
-
-void iop_mod(variable *r, variable *a, variable *b)
+OP_DEF(and)
 {
-	r->value.f = (float)((int)a->value.f % (int)b->value.f);
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = (int)a->value.f & (int)b->value.f;
+	return 0;
+}
+OP_DEF(xor)
+{
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = (int)a->value.f ^ (int)b->value.f;
+	return 0;
+}
+OP_DEF(or)
+{
+	if (a->type != NUMBER || b->type != NUMBER)
+		return -1;
+	r->type = NUMBER;
+	r->value.f = (int)a->value.f | (int)b->value.f;
+	return 0;
+}
+OP_DEF(set)
+{
+	if (b->type == NUMBER) {
+		a->type = NUMBER;
+		a->value.f = b->value.f;
+		r->type = NUMBER;
+		r->value.f = a->value.f;
+	} else if (b->type == STRING) {
+		a->type = STRING;
+		if (a->value.p != 0)
+			free((void *)a->value.p);
+		a->value.p = (uint32_t)strclone((char *)b->value.p);
+		r->type = STRING;
+		r->value.p = (uint32_t)strclone((char *)a->value.p);
+	} else {
+		return -1;
+	}
+	return 0;
 }
 

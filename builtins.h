@@ -3,14 +3,11 @@
 
 #include "parser.h"
 
-#define IUP_COUNT 3
-#define IDOWN_COUNT 3
+#define SKIP_SIG (uint32_t)-5
+#define CALL_SIG (uint32_t)-6
 
-void iload_core(interpreter *it);
+void iload_builtins(instance *it);
 
-void iret(interpreter *it, variable *v);
-
-const func_t indent_up[IUP_COUNT];
-const func_t indent_down[IDOWN_COUNT];
+int bn_end(instance *it);
 
 #endif // BUILTINS_H_

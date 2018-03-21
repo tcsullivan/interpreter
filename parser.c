@@ -1,478 +1,486 @@
-#include <parser.h>
+#include "parser.h"
 
-#include "shelpers.h"
 #include "builtins.h"
-#include "stack.h"
 #include "ops.h"
 
 #include <ctype.h>
 #include <stdlib.h>
-#include <memory.h>
+#include <stdio.h>
 #include <string.h>
 
-#define MAX_VARS  100
-#define MAX_STACK 32
+#define MAX_VARS  256
+#define MAX_STACK 64
 #define MAX_LINES 1000
 
-void iinit(interpreter *interp)
+char *strnclone(const char *s, size_t c)
 {
-	interp->vars = (variable *)calloc(MAX_VARS, sizeof(variable));
-	interp->vnames = (char **)calloc(MAX_VARS, sizeof(char *));
-	interp->stack = (stack_t *)calloc(MAX_STACK, sizeof(stack_t));
-	interp->stidx = 0;
-	interp->lines = (variable ***)calloc(MAX_LINES, sizeof(variable **));
-	interp->lnidx = 0;
-	interp->indent = 0;
-	interp->sindent = 0;
-	interp->ret = 0;
-
-	iload_core(interp);
+	char *b = strncpy((char *)malloc(c + 1), s, c);
+	b[c] = '\0';
+	return b;
 }
-
-void iend(interpreter *it)
+char *strclone(const char *s)
 {
-	for (unsigned int i = 0; i < MAX_VARS; i++) {
-		if (it->vars[i].used == 1) {
-			if (it->vars[i].valtype == STRING ||
-				it->vars[i].valtype == EXPR)
-				free((void *)it->vars[i].value.p);
-			free(it->vnames[i]);
-		}
-	}
-	for (unsigned int i = 0; i < MAX_LINES; i++) {
-		if (it->lines[i] != 0) {
-			for (unsigned int j = 0; (int32_t)it->lines[i][j] > 0; j++) {
-				switch (it->lines[i][j]->valtype) {
-				case STRING:
-					if (!it->lines[i][j]->used)
-						free(it->lines[i][j]);
-					break;
-				case EXPR:
-					free((void *)it->lines[i][j]->value.p);
-					free(it->lines[i][j]);
-					break;
-				case NUMBER:
-					if (!it->lines[i][j]->used)
-						free(it->lines[i][j]);
-					break;
-				}
-			}
-		}
-		free(it->lines[i]);
-	}
-	free(it->vars);
-	free(it->vnames);
-	free(it->stack);
-	free(it->lines);
+	return strnclone(s, strlen(s)); 
 }
-
-void iskip(interpreter *it)
+char *fixstring(const char *s)
 {
-	if (!(it->sindent & SKIP))
-		it->sindent = it->indent | SKIP;
-}
-
-variable *interpreter_get_variable(interpreter *interp, const char *name)
-{
-	for (uint32_t i = 0; i < MAX_VARS; i++) {
-		if (!interp->vars[i].used) {
-			variable *v = make_vars(&interp->vars[i], 0);
-			v->used = 1;
-			interp->vnames[i] = strclone(name);
-			return v;
-		} else if (interp->vnames[i] != 0 && !strcmp(interp->vnames[i], name)) {
-			return &interp->vars[i];
-		}
-	}
-	return 0;
-}
-
-char *interpreter_get_name(interpreter *interp, variable *v)
-{
-	for (uint32_t i = 0; i < MAX_VARS; i++) {
-		if (v == &interp->vars[i])
-			return interp->vnames[i];
-	}
-	return "(undefined)";
-}
-
-variable *inew_string(interpreter *interp, const char *name, const char *value)
-{
-	variable *v = interpreter_get_variable(interp, name);
-	if (v != 0) {
-		if (v->valtype == STRING && v->value.p != 0)
-			free((void *)v->value.p);
-		v->valtype = STRING;
-		v->value.p = (uint32_t)strclone(value);
-	}
-	return v;
-}
-
-variable *inew_number(interpreter *interp, const char *name, float value)
-{
-	variable *v = interpreter_get_variable(interp, name);
-	if (v != 0) {
-		v->valtype = NUMBER;
-		v->value.f = value;
-	}
-	return v;
-}
-
-variable *inew_cfunc(interpreter *interp, const char *name, func_t func)
-{
-	variable *v = interpreter_get_variable(interp, name);
-	if (v != 0) {
-		v->fromc = 1;
-		v->valtype = FUNC;
-		v->value.p = (uint32_t)func;
-	}
-	return v;
-}
-
-variable *make_var(interpreter *interp, const char *line, uint32_t *next)
-{
-	if (line[0] == '\"') { // string literal
-		uint32_t end = 1;
-		while (!eol(line[end])) {
-			if (line[end] == '\"'/* && line[end - 1] != '\\'*/) {
-				if (!eot(line[end + 1]))
-					return 0;
-				// TODO string breakdown
-				*next = end + 1;
-				char *str = strnclone(line + 1, end - 1);
-				variable *v = make_vars(0, str);
-				free(str);
-				return v;
-			}
-			end++;
-		}
-		return 0;
-	} else if (line[0] == '(') { // equation literal
-		uint32_t end = findend(line, '(', ')');
-		if (eot(line[end]))
-			return 0;
-		*next = end + 1;
-		char *expr = strnclone(line + 1, end);
-		variable *v = make_vare(0, expr);
-		free(expr);
-		return v;
-	} else {
-		variable *v = make_varn(0, 0.0f);
-		int inc = try_number(v, line);
-		if (inc != 0) {
-			*next = inc;
-			return v;
-		}
-		free(v);
-		char *name = 0;
-		inc = try_variable(&name, line);
-		if (inc != 0) {
-			*next = (inc > 0) ? inc : -inc;
-			variable *v = interpreter_get_variable(interp, name);
-			free(name);
-			return v;
-		}
-	}
-	return 0;
-}
-
-int idoline(interpreter *interp, const char *line)
-{
-	uint32_t ooffset = 0, offset = 0, next;
-	int fret = 0;
-
-	if (line[0] == '\0')
-		return 0;
-	skipblank(line, eol, &offset);
-	if (line[offset] == '#' || eol(line[offset]))
-		return 0;
-
-	variable **linebuf = (variable **)calloc(8, sizeof(variable *));
-	interp->lines[interp->lnidx] = linebuf;
-	variable **ops = interp->lines[interp->lnidx];
-
-	// step 1 - convert to tokens
-	while (!eol(line[offset])) {
-		if (offset > 0 && line[offset] == '>') {
-			offset++;
-			skipblank(line, eol, &offset);
-			variable *r = make_var(interp, line + offset, &next);
-			ops[ooffset] = (void *)-1;
-			ops[ooffset + 1] = r;
-			offset += next;
-			skipblank(line, eol, &offset);
-			continue;
-		}
-		variable *v = make_var(interp, line + offset, &next);
-		ops[ooffset] = v;
-		if (ops[ooffset] == 0) {
-			fret = -4;
-			goto fail;
+	char *n = malloc(strlen(s) + 1 - 2);
+	int j = 0;
+	for (int i = 1; s[i] != '\"'; i++, j++) {
+		if (s[i] == '\\') {
+			if (s[i + 1] == 'n')
+				n[j] = '\n';
+			i++;
 		} else {
-			ooffset++;
-			offset += next;
-		}
-		skipblank(line, eol, &offset);
-	}
-
-	// step 2 - execute
-	if (ooffset == 0) {
-		fret = -1;
-		goto fail;
-	}
-
-	if (ops[0]->valtype != FUNC) {
-		fret = -2;
-		goto fail;
-	}
-
-	if (ops[0]->fromc && ops[0]->value.p == 0) {
-		fret = -3;
-		goto fail;
-	}
-
-	if (ops[ooffset] != (void *)-1)
-		ops[ooffset] = 0;
-
-loop:
-	for (uint8_t i = 0; i < IUP_COUNT; i++) {
-		if (interp->lines[interp->lnidx][0]->value.p
-			== (uint32_t)indent_up[i]) {
-			interp->indent++;
-			goto cont;
+			n[j] = s[i];
 		}
 	}
-	for (uint8_t i = 0; i < IDOWN_COUNT; i++) {
-		if (interp->lines[interp->lnidx][0]->value.p
-			== (uint32_t)indent_down[i]) {
-			if (--interp->indent < 0) {
-				fret = -6;
-				goto fail;
+	n[j] = '\0';
+	return n;
+}
+
+void itryfree(variable *v)
+{
+	if (v == 0 || v->tmp == 0)
+		return;
+	if (v->type == STRING)
+		free((void *)v->value.p);
+	free(v);
+}
+
+instance *inewinstance(void)
+{
+	instance *it = (instance *)malloc(sizeof(instance));
+	it->vars = (variable *)calloc(MAX_VARS, sizeof(variable));
+	it->names = (char **)calloc(MAX_VARS, sizeof(char *));
+	it->stack = (uint32_t *)malloc(MAX_STACK * sizeof(uint32_t));
+	it->stidx = 0;
+	it->lines = (char **)calloc(MAX_LINES, sizeof(char *));
+	it->lnidx = 0;
+	it->ret = 0;
+	it->indent = 0;
+	it->sindent = 0;
+
+	iload_builtins(it);
+	return it;
+}
+
+void idelinstance(instance *it)
+{
+	free(it->vars);
+	for (uint32_t i = 0; i < MAX_VARS; i++)
+		free(it->names[i]);
+	free(it->names);
+	free(it->stack);
+	for (uint32_t i = 0; i < MAX_VARS; i++)
+		free(it->lines[i]);
+	free(it->lines);
+	itryfree(it->ret);
+	free(it);
+}
+
+void ipush(instance *it, uint32_t v)
+{
+	it->stack[it->stidx++] = v;
+}
+
+uint32_t ipop(instance *it)
+{
+	return it->stack[--it->stidx];
+}
+
+void ipopm(instance *it, uint32_t count)
+{
+	it->stidx -= count;
+}
+
+variable *igetarg(instance *it, uint32_t n)
+{
+	return (variable *)it->stack[it->stidx - n - 1];
+}
+
+variable *igetvar(instance *it, const char *name);
+void inew_cfunc(instance *it, const char *name, func_t func)
+{
+	variable *v = igetvar(it, name);
+	v->type = CFUNC;
+	v->value.p = (uint32_t)func;
+}
+
+void inew_number(instance *it, const char *name, float f)
+{
+	variable *v = igetvar(it, name);
+	v->type = NUMBER;
+	v->value.f = f;
+}
+
+void inew_string(instance *it, const char *name, const char *s)
+{
+	variable *v = igetvar(it, name);
+	v->type = STRING;
+	v->value.p = (uint32_t)strclone(s);
+}
+
+variable *varclone(variable *n)
+{
+	variable *v = (variable *)malloc(sizeof(variable));
+	v->tmp = 1;
+	v->type = n->type;
+	if (n->type == STRING)
+		v->value.p = (uint32_t)strclone((char *)n->value.p);
+	else
+		v->value.p = n->value.p;
+	return v;
+}
+
+variable *make_varf(variable *v, float f)
+{
+	if (v == 0) {
+		v = (variable *)malloc(sizeof(variable));
+		v->tmp = 1;
+	}
+	v->type = NUMBER;
+	v->value.f = f;
+	return v;
+}
+
+variable *make_vars(variable *v, const char *s)
+{
+	if (v == 0) {
+		v = (variable *)malloc(sizeof(variable));
+		v->tmp = 1;
+	}
+	v->type = STRING;
+	v->value.p = (uint32_t)strclone(s);
+	return v;
+}
+
+variable *make_num(const char *text)
+{
+	int decimal = -1;
+	char valid = 0;
+
+	int i = 0;
+	if (text[0] == '-')
+		i++;
+	do {
+		if (text[i] == '.') {
+			if (decimal >= 0) {
+				valid = 0;
+				break;
 			}
-			if (interp->indent < (interp->sindent & ~(SKIP)))
-				interp->sindent &= ~(SKIP);
-			else
-				goto cont;
+			decimal = i;
+		} else if (isdigit(text[i])) {
+			valid |= 1;
+		} else {
 			break;
 		}
-	}
+	} while (text[++i] != '\0');
 
-cont:
-	if (interp->indent > 0 && interp->sindent & SKIP)
-		goto norun;
+	if (valid == 0)
+		return 0;
 
-	ops = (variable **)malloc(8 * sizeof(variable *));
-	for (uint8_t i = 0; i < 8; i++)
-		ops[i] = interp->lines[interp->lnidx][i];
-	uint32_t oldLnidx = interp->lnidx;
-	
-	// eval expressions
-	ooffset = 1;
-	for (; ops[ooffset] != 0 && ops[ooffset] != (void *)-1; ooffset++) {
-		if (ops[ooffset]->valtype == EXPR) {
-			char *expr = strclone((char *)ops[ooffset]->value.p);
-			variable *r = idoexpr(interp, expr);
-			ops[ooffset] = r;
-			free(expr);
+	char *buf = (char *)malloc(i + 1);
+	strncpy(buf, text, i);
+	buf[i] = '\0';
+
+	variable *v = make_varf(0, strtof(buf, 0));
+	free(buf);
+	return v;
+}
+
+variable *igetop(instance *it, const char *name)
+{
+	for (uint32_t i = 0; i < OPS_COUNT; i++) {
+		if (opnames[i] != 0 && !strcmp(name, opnames[i])) {
+			return &opvars[i];
 		}
 	}
-
-	if (ops[ooffset] == (void *)-1)
-		interp->ret = ops[ooffset + 1];
-
-	if (ops[0]->fromc) {
-		for (uint32_t i = ooffset; --i > 0;)
-			ipush(interp, ops[i]);
-
-		int ret = ((func_t)ops[0]->value.p)(interp);
-		if (ret != 0)
-			return ret;
-		ipopm(interp, ooffset - 1);
-	} else {
-		char an[6];
-		for (uint32_t i = 1; i < ooffset; i++) {
-			snprintf(an, 6, "arg%d", (int)(i - 1));
-			switch (ops[i]->valtype) {
-			case STRING:
-				inew_string(interp, an, (char *)ops[i]->value.p);
-				break;
-			case NUMBER:
-				inew_number(interp, an, ops[i]->value.f);
-				break;
-			default:
-				break;
+	return 0;
+}
+variable *igetvar(instance *it, const char *name)
+{
+	if (isalpha(name[0])) {
+		for (uint32_t i = 0; i < MAX_VARS; i++) {
+			if (it->names[i] == 0) {
+				it->names[i] = strclone(name);
+				// default to 0 float
+				return make_varf(&it->vars[i], 0.0f);
+			} else if (!strcmp(name, it->names[i])) {
+				return &it->vars[i];
 			}
 		}
-
-		ipush(interp, (void *)(uint32_t)interp->indent);
-		ipush(interp, (void *)interp->lnidx);
-		ipush(interp, (void *)-2); // magic
-		interp->lnidx = ops[0]->value.p;
-		interp->indent++;
 	}
 
-	if ((int32_t)interp->stidx < 0) {
-		interp->stidx = 0;
-		return -5;
-	}
+	return igetop(it, name);
+}
 
-	for (uint32_t i = 1; i < ooffset; i++) {
-		if (ops[i] != interp->lines[oldLnidx][i]) {
-			if (ops[i]->valtype == STRING || ops[i]->valtype == EXPR)
-				free((void *)ops[i]->value.p);
-			free(ops[i]);
-		}
-	}
+int idoline(instance *it, const char *s)
+{
+	it->lines[it->lnidx] = strclone(s);
+	variable **ops;
+loop:
+	ops = iparse(it, it->lines[it->lnidx]);
+
+	if (it->ret != 0)
+		itryfree(it->ret);
+	it->ret = 0;
+
+	if (ops == 0)
+		goto next;
+	it->ret = isolve(it, ops, 0);
+
+next:
 	free(ops);
-norun:
-	interp->lnidx++;
-	if (interp->lines[interp->lnidx] != 0)
+	it->lnidx++;
+	if (it->lines[it->lnidx] != 0)
 		goto loop;
 
 	return 0;
-
-fail:
-	free(interp->lines[interp->lnidx]);
-	interp->lines[interp->lnidx] = 0;
-	return fret;
 }
 
-variable *idoexpr(interpreter *interp, const char *line)
+variable *isolve_(instance *it, variable **ops, uint32_t count);
+variable *isolve(instance *it, variable **ops, uint32_t count)
 {
-	void *ops[16];
-	uint32_t ooffset = 0;
-	uint32_t offset = 0;
+	if (count == 0)
+		for (count = 0; ops[count] != 0; count++);
 
-	// step 1 - break apart line
-	for (uint8_t i = 0; i < 16; i++)
-		ops[i] = 0;
-
-	// skip whitespace
-	skipblank(line, eol, &offset);
-	while (!eoe(line[offset])) {
-		if (line[offset] == '(') {
-			uint8_t indent = 0;
-			uint32_t i;
-			for (i = offset + 1; !eol(line[i]); i++) {
-				if (line[i] == '(') {
-					indent++;
-				} else if (line[i] == ')') {
-					if (indent == 0) {
-						break;
-					} else {
-						indent--;
-					}
-				}
-			}
-			if (eol(line[i]))
-				return 0;
-			ops[ooffset] = idoexpr(interp, line + offset + 1);
-			offset = i + 1;
-		} else {
-			variable *v = make_varn(0, 0.0f);
-			int inc = try_number(v, line + offset);
-			if (inc != 0) {
-				ops[ooffset] = v;
-				offset += inc;
-			} else {
-				free(v);
-				char *name;
-				inc = try_variable(&name, line + offset);
-				if (inc != 0) {
-					v = interpreter_get_variable(interp, name);
-					ops[ooffset] = v;
-					free(name);
-					if (inc < 0) {
-						inc = -inc;
-						ops[ooffset + 2] = v;
-						ops[ooffset + 1] = (void *)5; // -
-						ops[ooffset] = make_varn(0, 0.0f);
-						ooffset += 2;
-					}
-					offset += inc;
-				} else {
-					return 0;
-				}
-			}
+	for (uint32_t i = 0; i < count; i++) {
+		if (((uint32_t)ops[i] & OP_MAGIC) == OP_MAGIC) {
+			uint32_t count_ = (uint32_t)ops[i] & 0xFF;
+			ops[i] = isolve(it, ops + i + 1, count_);
+			for (uint32_t j = 1; j <= count_; j++)
+				ops[i + j] = 0;
 		}
-
-		if (ops[ooffset] == 0)
-			return 0;
-		
-		ooffset++;
-
-		// skip whitespace
-		skipblank(line, eoe, &offset);
-		if (eoe(line[offset]))
-			break;
-
-		for (uint32_t i = 0; i < IOPS_COUNT; i++) {
-			int len = strlen(iops[i]);
-			if (!strncmp(iops[i], line + offset, len)) {
-				ops[ooffset] = (void *)(i + 1);
-				offset += len;
-				break;
-			}
-		}
-
-		if (ops[ooffset] == 0) // implicit multiply
-			ops[ooffset] = (void *)1;
-
-		ooffset++;
-		// skip whitespace
-		skipblank(line, eol, &offset);
 	}
 
-	if (ooffset % 2 == 0)
-		return 0;
+	return isolve_(it, ops, count);
+}
 
-	// step 2 - do operations
-	// for every operator, ordered by importance
-	for (uint32_t i = 0; i < IOPS_COUNT; i++) {
-		// find instances of the operation
-		for (uint32_t j = 1; j < ooffset; j += 2) {
-			// if a match
-			if ((uint32_t)ops[j] == i + 1) {
-				// find args
-				uint32_t ai = j - 1;
-				uint32_t bi = j + 1;
-				while (ops[ai] == 0)
-					ai--;
-				while (ops[bi] == 0)
-					bi++;
+variable *isolve_(instance *it, variable **ops, uint32_t count)
+{
+	// first, look for functions
+	for (uint32_t i = 0; i < count; i++) {
+		if (ops[i] == 0)
+			continue;
+		if (ops[i]->type == CFUNC || ops[i]->type == FUNC) {
+			uint32_t nargs = (uint32_t)ops[i + 1];
+			uint32_t start = i;
+			i += 2;
+			int32_t j;
+			for (j = nargs; j > 0 && i < count; i++) {
+				if (ops[i] != 0) {
+					if (ops[start]->type == CFUNC) {
+						it->stack[it->stidx + j - 1] = (uint32_t)ops[i];
+					} else {
+						char namebuf[6];
+						snprintf(namebuf, 6, "arg%d", nargs - j);
+						if (ops[i]->type == NUMBER)
+							inew_number(it, namebuf, ops[i]->value.f);
+						else
+							inew_string(it, namebuf,
+								(const char *)ops[i]->value.p);
+					}				
+					j--;
+				}
+			}
+			if (j != 0)
+				return 0;
 
-				variable *r = (variable *)calloc(1, sizeof(variable));
-				iopfuncs[i](r, ops[ai], ops[bi]);
+			if (ops[start]->type == CFUNC) {
+				func_t func = (func_t)ops[start]->value.p;
+				it->stidx += nargs;
 
-				variable *v = (variable *)ops[ai];
-				if (!v->used)
-					free(v);
-				ops[ai] = r;
-				v = (variable *)ops[bi];
-				if (!v->used)
-					free(v);
-				ops[bi] = 0;
+				uint32_t sidx = it->stidx;
+				int ret = 0;
+				if (!(it->sindent & SKIP))
+					ret = func(it);
+				if (ret != 0)
+					return 0;
+				if (it->stidx > sidx)
+					ops[start] = (variable *)ipop(it);
+				else
+					ops[start] = 0;
+				ipopm(it, nargs);
+			} else {
+				ipush(it, it->lnidx);
+				ipush(it, CALL_SIG);
+				it->lnidx = ops[start]->value.p;
+			}
+
+			ops[start + 1] = 0;
+			for (uint32_t j = start + 2; j < i; j++) {
+				itryfree(ops[j]);
 				ops[j] = 0;
 			}
 		}
 	}
 
-	variable *result = make_varn(0, ((variable *)ops[0])->value.f);
-	if (!((variable *)ops[0])->used)
-		free(ops[0]);
+	// next, operators
+	for (uint32_t j = 0; j < OPS_COUNT; j += 2) {
+		for (uint32_t i = 0; i < count; i++) {
+			if (ops[i] == 0)
+				continue;
+			if (ops[i]->type == OPERATOR) {
+				if (ops[i]->value.p != (uint32_t)opvars[j].value.p) {
+					if (ops[i]->value.p != (uint32_t)opvars[j + 1].value.p)
+						continue;
+				}
 
-	//for (uint32_t i = 1; i < ooffset; i += 2)
-	//	iopfuncs[(uint32_t)ops[i] - 1](result, result, ops[i + 1]);
-	
-	//for (uint32_t i = 0; i < ooffset; i += 2) {
-	//	variable *v = (variable *)ops[i];
-	//	if (!v->used) {
-	//		if (v->valtype == STRING || v->valtype == EXPR)
-	//			free((void *)v->value.p);
-	//		free(ops[i]);
-	//	}
-	//}
+				opfunc_t func = (opfunc_t)ops[i]->value.p;
+				uint32_t aidx = i - 1;
+				while (ops[aidx] == 0 && aidx != 0)
+					aidx--;
+				if (ops[aidx] == 0)
+					return 0;
+				uint32_t bidx = i + 1;
+				while (ops[bidx] == 0 && ++bidx < count);
+				if (bidx == count)
+					return 0;
 
-	return result;
+				if (it->sindent & SKIP) {
+					itryfree(ops[aidx]);
+					itryfree(ops[bidx]);
+					ops[aidx] = 0;
+				} else {
+					variable *v = varclone(ops[aidx]);
+					if (func(v, ops[aidx], ops[bidx]) != 0)
+						return 0;
+					itryfree(ops[aidx]);
+					ops[aidx] = v;
+					itryfree(ops[bidx]);
+				}
+				ops[i] = 0;
+				ops[bidx] = 0;
+			}
+		}
+	}
+
+	return ops[0];
 }
 
+variable **iparse(instance *it, const char *s)
+{
+	uint32_t ooffset = 0;
+	size_t offset = 0;
+
+	while (isblank(s[offset]))
+		offset++;
+	if (s[offset] == '#' || s[offset] == '\0' || s[offset] == '\n')
+		return 0;
+
+	variable **ops = (variable **)calloc(32, sizeof(variable *));
+	while (s[offset] != '\0' && s[offset] != '\n') {
+		if (isalpha(s[offset])) {
+			size_t end = offset + 1;
+			while (isalnum(s[end]))
+				end++;
+			char *name = strnclone(s + offset, end - offset);
+			ops[ooffset++] = igetvar(it, name);
+			free(name);
+			while (isblank(s[end]))
+				end++;
+			if (s[end] == '(') {
+				uint32_t argidx = ooffset;
+				uint32_t argcount = 0;
+				ooffset++;
+				end++;
+				for (int last = end, c = 0; c >= 0; end++) {
+					if (s[end] == '(')
+						c++;
+					if (c == 0 && last != end && (s[end] == ',' || s[end] == ')')) {
+						argcount++;
+						char *arg = strnclone(s + last, end - last);
+						uint32_t parenidx = ooffset;
+						ooffset++;
+						variable **moreops = iparse(it, arg);
+						uint32_t count = 0;
+						if (moreops != 0) {
+							for (uint32_t i = 0; moreops[i] != 0; count++, i++)
+								ops[ooffset++] = moreops[i];
+							free(moreops);
+						}
+						free(arg);
+						ops[parenidx] = (variable *)(OP_MAGIC | count);
+						last = end + 1;
+					}
+					if (s[end] == ')')
+						c--;
+				}
+				if (s[end] != '\0')
+					end++;
+				ops[argidx] = (variable *)argcount;
+			}
+			offset = end;
+		} else if (isdigit(s[offset])) {
+			size_t end = offset + 1;
+			while (isdigit(s[end]) || s[end] == '.')
+				end++;
+			char *word = strnclone(s + offset, end - offset);
+			ops[ooffset++] = make_num(word);
+			free(word);
+			offset = end;
+		} else if (s[offset] == '\"') {
+			size_t end = offset + 1;
+			while (s[end] != '\"')// && s[end - 1] == '\\')
+				end++;
+			end++;
+			char *word = strnclone(s + offset, end - offset);
+			char *fword = fixstring(word);
+			ops[ooffset++] = make_vars(0, fword);
+			free(word);
+			free(fword);
+			offset = end;
+		} else if (s[offset] == '(') {
+			size_t i = offset + 1;
+			for (int c = 0; s[i] != ')' || --c >= 0; i++) {
+				if (s[i] == '(')
+					c++;
+			}
+			i++;
+			char *word = strnclone(s + offset + 1, i - offset - 2);
+			uint32_t parenidx = ooffset;
+			ooffset++;
+			variable **moreops = iparse(it, word);
+			uint32_t count = 0;
+			if (moreops != 0) {
+				for (uint32_t i = 0; moreops[i] != 0; count++, i++)
+					ops[ooffset++] = moreops[i];
+				free(moreops);
+			}
+			free(word);
+			ops[parenidx] = (variable *)(OP_MAGIC | count);
+			offset = i;
+		} else if (!isblank(s[offset])) {
+			size_t end = offset + 1;
+			while (!isblank(s[end]) && s[end] != '\0')
+				end++;
+			char *word = strnclone(s + offset, end - offset);
+
+			// bracket?
+			if (!strcmp(word, "{")) {
+				it->indent++;
+				if (it->sindent & SKIP)
+					ipush(it, SKIP_SIG);
+			} else if (!strcmp(word, "}")) {
+				it->indent--;
+				if (it->indent < (it->sindent & ~(SKIP)))
+					it->sindent = 0;
+				bn_end(it);
+			} else {
+				variable *v = igetop(it, word);
+				if (v == 0)
+					return 0;
+				ops[ooffset++] = v;
+			}
+			free(word);
+			offset = end;
+		} else {
+			offset++;
+		}
+	}
+
+	// mark end
+	ops[ooffset] = 0;
+	return ops;
+}

@@ -1,27 +1,24 @@
-#include <parser.h>
-#include <builtins.h>
-
-#include "stack.h"
-
-#include <memory.h>
 #include <stdio.h>
-//#include <stdlib.h>
 #include <string.h>
 
-int s_put(interpreter *it)
+#include "parser.h"
+
+int print(instance *it)
 {
-	variable *v = igetarg(it, 0);
-	if (v->valtype == NUMBER)
-		printf("%.f", v->value.f);
-	else
-		printf("%s", (char *)v->value.p);
+	variable *s = igetarg(it, 0);
+	if (s->type == NUMBER) {
+		if (s->value.f == (int)s->value.f)
+			printf("%d\n", (int)s->value.f);
+		else
+			printf("%.3f\n", s->value.f);
+	} else if (s->value.p != 0) {
+		printf("%s\n", (char *)s->value.p);
+	}
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
-	interpreter interp;
-
 	if (argc != 2) {
 		printf("Usage: %s file\n", argv[0]);
 		return -1;
@@ -33,20 +30,23 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	iinit(&interp);
-	inew_cfunc(&interp, "print", s_put);
+	instance *it = inewinstance();
+	inew_cfunc(it, "print", print);
 
 	char *line = 0;
-	unsigned int size;
+	size_t size;
 	int result;
 	while (getline(&line, &size, fp) != -1) {
 		*strchr(line, '\n') = '\0';
-		result = idoline(&interp, line);
+		result = idoline(it, line);
 		if (result != 0)
 			printf("Error: %d\n", result);
+		//if (it->ret != 0)
+		//	printf("%s = %f\n", line, it->ret->value.f);
 	}
 
 	fclose(fp);
-	iend(&interp);
+	idelinstance(it);
 	return 0;
 }
+

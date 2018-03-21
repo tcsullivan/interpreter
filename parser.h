@@ -1,36 +1,40 @@
 #ifndef PARSER_H_
 #define PARSER_H_
 
-#include <variable.h>
+#include "variable.h"
 
-typedef variable *stack_t;
+#include <stdint.h>
 
 typedef struct {
 	variable *vars;
-	char **vnames;
-	stack_t *stack;
+	char **names;
+	uint32_t *stack;
 	uint32_t stidx;
-	variable ***lines;
+	char **lines;
 	uint32_t lnidx;
-	int8_t indent;
-	uint8_t sindent;
 	variable *ret;
-} interpreter;
+	uint8_t indent;
+	uint8_t sindent;
+} instance;
 
 #define SKIP (1 << 7)
 
-typedef int (*func_t)(interpreter *);
+typedef int (*func_t)(instance *);
 
-void iinit(interpreter *);
-void iend(interpreter *);
+instance *inewinstance(void);
+void idelinstance(instance *it);
 
-void iskip(interpreter *);
+int idoline(instance *it, const char *s);
+variable **iparse(instance *it, const char *s);
+variable *isolve(instance *it, variable **ops, uint32_t count);
 
-variable *inew_string(interpreter *, const char *, const char *);
-variable *inew_number(interpreter *, const char *, float);
-variable *inew_cfunc(interpreter *, const char *, func_t);
+void inew_cfunc(instance *it, const char *name, func_t func);
 
-int idoline(interpreter *, const char *);
-variable *idoexpr(interpreter *, const char *);
+variable *make_varf(variable *v, float f);
+variable *make_vars(variable *v, const char *s);
+
+uint32_t ipop(instance *it);
+void ipush(instance *it, uint32_t v);
+variable *igetarg(instance *it, uint32_t n);
 
 #endif // PARSER_H_

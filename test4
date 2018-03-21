@@ -1,0 +1,6 @@
+# test4
+# find memory leaks
+
+x = 4
+y = solve("x-2")
+print(y)

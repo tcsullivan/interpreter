@@ -1,179 +1,124 @@
 #include "builtins.h"
-#include "stack.h"
-#include "shelpers.h"
 
-#include <memory.h>
-#include <string.h>
+#include <stdlib.h>
 
-int ifunc_set(interpreter *it);
-int ifunc_label(interpreter *it);
-int ifunc_end(interpreter *it);
-int ifunc_if(interpreter *it);
-int ifunc_do(interpreter *it);
-int ifunc_while(interpreter *it);
-int ifunc_ret(interpreter *it);
-int ifunc_else(interpreter *it);
-int ifunc_solve(interpreter *it);
+#define IF_SIG    (uint32_t)-1
+#define WHILE_SIG (uint32_t)-2
+#define ELSE_SIG  (uint32_t)-3
+#define FUNC_SIG  (uint32_t)-4
 
-const func_t indent_up[IUP_COUNT] = {
-	ifunc_if, ifunc_do, ifunc_label
-};
+int bn_set(instance *it);
+int bn_if(instance *it);
+int bn_else(instance *it);
+int bn_end(instance *it);
+int bn_while(instance *it);
+int bn_func(instance *it);
+int bn_solve(instance *it);
 
-const func_t indent_down[IDOWN_COUNT] = {
-	ifunc_else, ifunc_end, ifunc_while, 
-};
-
-void iload_core(interpreter *interp)
+void iload_builtins(instance *it)
 {
-	inew_cfunc(interp, "set", ifunc_set);
-	inew_cfunc(interp, "func", ifunc_label);
-	inew_cfunc(interp, "end", ifunc_end);
-	inew_cfunc(interp, "if", ifunc_if);
-	inew_cfunc(interp, "do", ifunc_do);
-	inew_cfunc(interp, "while", ifunc_while);
-	inew_cfunc(interp, "ret", ifunc_ret);
-	inew_cfunc(interp, "else", ifunc_else);
-	inew_cfunc(interp, "solve", ifunc_solve);
+	inew_cfunc(it, "set", bn_set);
+	inew_cfunc(it, "if", bn_if);
+	inew_cfunc(it, "else", bn_else);
+	inew_cfunc(it, "while", bn_while);
+	inew_cfunc(it, "func", bn_func);
+	inew_cfunc(it, "solve", bn_solve);
 }
 
-int ifunc_solve(interpreter *it)
+int bn_set(instance *it)
 {
-	const char *expr = igetarg_string(it, 0);
-	int len = strlen(expr);
-	char *buf = (char *)malloc(len + 2);
-	strcpy(buf, expr);
-	buf[len] = ')';
-	buf[len + 1] = '\0';
-	variable *r = idoexpr(it, buf);
-	free(buf);
-	if (r == 0)
-		r = make_varn(0, 0.0f);
-	iret(it, r);
-	free(r);
+	variable *var = igetarg(it, 0);
+	variable *value = igetarg(it, 1);
+	var->type = value->type;
+	var->value.p = value->value.p;
+	ipush(it, (uint32_t)var);
 	return 0;
 }
 
-int ifunc_set(interpreter *it)
+int bn_if(instance *it)
 {
-	variable *n = igetarg(it, 0);
-	variable *v = igetarg(it, 1);
+	variable *cond = (variable *)ipop(it);
+	uint32_t result = cond->value.p;
 
-	if (n == 0)
-		return -1;
+	ipush(it, result);
+	ipush(it, IF_SIG);
+	if (result == 0)
+		it->sindent = SKIP | it->indent;
+	ipush(it, 0);
+	ipush(it, 0); // need to return because stack modify
 
-	if (n->valtype == STRING)
-		free((void *)n->value.p);
-	n->valtype = v->valtype;
-	n->value.p = v->value.p;
 	return 0;
 }
 
-int ifunc_label(interpreter *it)
+static uint32_t if_cond = 0;
+int bn_else(instance *it)
 {
-	variable *n = igetarg(it, 0);
-	
-	if (n == 0)
-		return -1;
-
-	n->valtype = FUNC;
-	n->value.p = it->lnidx;
-	iskip(it);
-	return 0;
-}
-
-int ifunc_if(interpreter *it)
-{
-	int v = igetarg(it, 0)->value.p;
-	if (v == 0)
-		iskip(it);
-	void *arg = ipop(it);
-	ipush(it, (void *)v);
-	ipush(it, (void *)-1);
-	ipush(it, arg);
-	return 0;
-}
-
-int ifunc_end(interpreter *it)
-{
-	if (it->stidx == 0)
-		return 0;
-
-	uint32_t lnidx = (uint32_t)ipop(it) + 1;
-	if (lnidx == 0) { // from an if, have conditional
-		ipop(it); // whatever
-	} else {
-		if (lnidx == (uint32_t)-1) {
-			// script-func call
-			lnidx = (uint32_t)ipop(it);
-			it->indent = (uint32_t)ipop(it);
-		}
-		it->lnidx = lnidx;
-	}
-	return 0;
-}
-
-int ifunc_else(interpreter *it)
-{
-	if (it->stidx == 0)
-		return 0;
-
-	ipop(it); // the -1
-	int cond = (int)ipop(it);
-	it->indent++;
+	uint32_t cond = if_cond;
 	if (cond != 0)
-		iskip(it);
-	// otherwise it's whatever?
+		it->sindent = SKIP | it->indent;
+	ipush(it, ELSE_SIG);
+	ipush(it, 0); // for ret
+	return 0;
+}
+
+int bn_end(instance *it)
+{
+	uint32_t sig = ipop(it);
+	if (sig == IF_SIG) {
+		if_cond = ipop(it);
+	} else if (sig == WHILE_SIG) {
+		uint32_t lnidx = ipop(it);
+		if (lnidx != (int32_t)-1)
+			it->lnidx = lnidx - 1;
+	} else if (sig == CALL_SIG) {
+		it->lnidx = ipop(it);
+		it->indent++;
+	}
+ 	return 0;
+}
+
+int bn_while(instance *it)
+{
+	variable *cond = (variable *)ipop(it);
+	uint32_t result = cond->value.p;
+
+	if (result == 0) {
+		it->sindent = SKIP | it->indent;
+		ipush(it, (uint32_t)-1);
+	} else {
+		ipush(it, it->lnidx);
+	}
+	ipush(it, WHILE_SIG);
 	ipush(it, 0);
-	ipush(it, (void *)-1);
-
+	ipush(it, 0); // need to ret
 	return 0;
 }
 
-int ifunc_do(interpreter *it)
+int bn_func(instance *it)
 {
-	ipush(it, (void *)it->lnidx);
+	variable *f = igetarg(it, 0);
+	if (f == 0)
+		return -1;
+
+	f->type = FUNC;
+	f->value.p = it->lnidx;
+	it->sindent = SKIP | it->indent;
+	ipush(it, FUNC_SIG);
+	ipush(it, 0); // for ret
 	return 0;
 }
 
-int ifunc_while(interpreter *it)
+int bn_solve(instance *it)
 {
-	int c = igetarg(it, 0)->value.p;
-	ipop(it);
-	int nidx = (int)ipop(it);
-	if (c != 0) {
-		//ipush(it, (void *)nidx);
-		it->lnidx = nidx - 1;
-	}
-	ipush(it, 0);
-	return 0;
-}
+	variable *s = igetarg(it, 0);
+	variable **ops = iparse(it, (const char *)s->value.p);
+	if (ops == 0)
+		return -1;
 
-void iret(interpreter *it, variable *v)
-{
-	switch (v->valtype) {
-	case NUMBER:
-		inew_number(it, "RET", v->value.f);
-		break;
-	case STRING:
-		inew_string(it, "RET", (char *)v->value.p);
-		break;
-	default:
-		return;
-		break;
-	}
-	if (it->ret != 0) {
-		if (it->ret->valtype == STRING && it->ret->value.p != 0)
-			free((void *)it->ret->value.p);
-		it->ret->valtype = v->valtype;
-		it->ret->value.p = v->value.p;
-		it->ret = 0;
-	}
-}
+	variable *a = isolve(it, ops, 0);
+	free(ops);
 
-int ifunc_ret(interpreter *it)
-{
-	variable *v = igetarg(it, 0);
-	iret(it, v);
+	ipush(it, (uint32_t)a);
 	return 0;
 }
 

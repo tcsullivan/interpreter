@@ -1,13 +1,14 @@
 #ifndef OPS_H_
 #define OPS_H_
 
-#include "parser.h"
+#include "variable.h"
 
-#define IOPS_COUNT 16
+#define OPS_COUNT 18
+#define OP_MAGIC  0xCAFE3900
 
-typedef void (*operation_t)(variable *, variable *, variable *);
+typedef int (*opfunc_t)(variable *, variable *, variable *);
 
-extern char *iops[IOPS_COUNT];
-extern operation_t iopfuncs[IOPS_COUNT];
+extern variable opvars[];
+extern const char *opnames[];
 
 #endif // OPS_H_
