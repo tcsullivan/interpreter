@@ -10,7 +10,7 @@ typedef struct {
 	char **names;
 	uint32_t *stack;
 	uint32_t stidx;
-	char **lines;
+	variable ***lines;
 	uint32_t lnidx;
 	variable *ret;
 	uint8_t indent;

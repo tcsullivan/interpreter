@@ -68,7 +68,7 @@ int bn_end(instance *it)
 		if_cond = ipop(it);
 	} else if (sig == WHILE_SIG) {
 		uint32_t lnidx = ipop(it);
-		if (lnidx != (int32_t)-1)
+		if (lnidx != (uint32_t)-1)
 			it->lnidx = lnidx - 1;
 	} else if (sig == CALL_SIG) {
 		it->lnidx = ipop(it);

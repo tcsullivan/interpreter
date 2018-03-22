@@ -12,6 +12,30 @@
 #define MAX_STACK 64
 #define MAX_LINES 1000
 
+int bracket_open(instance *it)
+{
+	it->indent++;
+	if (it->sindent & SKIP) {
+		ipush(it, SKIP_SIG);
+		ipush(it, 0);
+	}
+	return 0;
+}
+int bracket_close(instance *it)
+{
+	it->indent--;
+	if (it->indent < (it->sindent & ~(SKIP)))
+		it->sindent = 0;
+	bn_end(it);
+	return 0;
+}
+static variable bopen = {
+	0, CFUNC, 0, {.p = (uint32_t)bracket_open}
+};
+static variable bclose = {
+	0, CFUNC, 0, {.p = (uint32_t)bracket_close}
+};
+
 char *strnclone(const char *s, size_t c)
 {
 	char *b = strncpy((char *)malloc(c + 1), s, c);
@@ -55,7 +79,7 @@ instance *inewinstance(void)
 	it->names = (char **)calloc(MAX_VARS, sizeof(char *));
 	it->stack = (uint32_t *)malloc(MAX_STACK * sizeof(uint32_t));
 	it->stidx = 0;
-	it->lines = (char **)calloc(MAX_LINES, sizeof(char *));
+	it->lines = (variable ***)calloc(MAX_LINES, sizeof(variable **));
 	it->lnidx = 0;
 	it->ret = 0;
 	it->indent = 0;
@@ -72,7 +96,7 @@ void idelinstance(instance *it)
 		free(it->names[i]);
 	free(it->names);
 	free(it->stack);
-	for (uint32_t i = 0; i < MAX_VARS; i++)
+	for (uint32_t i = 0; i < MAX_LINES; i++) // TODO free vars!
 		free(it->lines[i]);
 	free(it->lines);
 	itryfree(it->ret);
@@ -189,7 +213,7 @@ variable *make_num(const char *text)
 	return v;
 }
 
-variable *igetop(instance *it, const char *name)
+variable *igetop(const char *name)
 {
 	for (uint32_t i = 0; i < OPS_COUNT; i++) {
 		if (opnames[i] != 0 && !strcmp(name, opnames[i])) {
@@ -212,26 +236,27 @@ variable *igetvar(instance *it, const char *name)
 		}
 	}
 
-	return igetop(it, name);
+	return igetop(name);
 }
 
 int idoline(instance *it, const char *s)
 {
-	it->lines[it->lnidx] = strclone(s);
-	variable **ops;
-loop:
-	ops = iparse(it, it->lines[it->lnidx]);
+	variable **ops = iparse(it, s);
+	if (ops == 0)
+		return 0;
+	it->lines[it->lnidx] = ops;
 
+loop:
 	if (it->ret != 0)
 		itryfree(it->ret);
 	it->ret = 0;
 
-	if (ops == 0)
-		goto next;
-	it->ret = isolve(it, ops, 0);
+	variable **copy = malloc(32 * sizeof(variable *));
+	for (int i = 0; i < 32; i++)
+		copy[i] = it->lines[it->lnidx][i];
+	it->ret = isolve(it, copy, 0);
+	free(copy);
 
-next:
-	free(ops);
 	it->lnidx++;
 	if (it->lines[it->lnidx] != 0)
 		goto loop;
@@ -264,9 +289,11 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 		if (ops[i] == 0)
 			continue;
 		if (ops[i]->type == CFUNC || ops[i]->type == FUNC) {
-			uint32_t nargs = (uint32_t)ops[i + 1];
+			uint32_t nargs = (uint32_t)ops[i + 1] - 1;
 			uint32_t start = i;
-			i += 2;
+			i++;
+			if (nargs > 0)
+				i++;
 			int32_t j;
 			for (j = nargs; j > 0 && i < count; i++) {
 				if (ops[i] != 0) {
@@ -274,7 +301,8 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 						it->stack[it->stidx + j - 1] = (uint32_t)ops[i];
 					} else {
 						char namebuf[6];
-						snprintf(namebuf, 6, "arg%d", nargs - j);
+						snprintf(namebuf, 6, "arg%u",
+							(uint16_t)(nargs - j));
 						if (ops[i]->type == NUMBER)
 							inew_number(it, namebuf, ops[i]->value.f);
 						else
@@ -293,7 +321,8 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 
 				uint32_t sidx = it->stidx;
 				int ret = 0;
-				if (!(it->sindent & SKIP))
+				if (!(it->sindent & SKIP) || (func == bracket_open ||
+					func == bracket_close))
 					ret = func(it);
 				if (ret != 0)
 					return 0;
@@ -301,7 +330,8 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 					ops[start] = (variable *)ipop(it);
 				else
 					ops[start] = 0;
-				ipopm(it, nargs);
+
+				it->stidx -= nargs;
 			} else {
 				ipush(it, it->lnidx);
 				ipush(it, CALL_SIG);
@@ -310,7 +340,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 
 			ops[start + 1] = 0;
 			for (uint32_t j = start + 2; j < i; j++) {
-				itryfree(ops[j]);
+				//itryfree(ops[j]);
 				ops[j] = 0;
 			}
 		}
@@ -339,16 +369,16 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 					return 0;
 
 				if (it->sindent & SKIP) {
-					itryfree(ops[aidx]);
-					itryfree(ops[bidx]);
+					//itryfree(ops[aidx]);
+					//itryfree(ops[bidx]);
 					ops[aidx] = 0;
 				} else {
 					variable *v = varclone(ops[aidx]);
 					if (func(v, ops[aidx], ops[bidx]) != 0)
 						return 0;
-					itryfree(ops[aidx]);
+					//itryfree(ops[aidx]);
 					ops[aidx] = v;
-					itryfree(ops[bidx]);
+					//itryfree(ops[bidx]);
 				}
 				ops[i] = 0;
 				ops[bidx] = 0;
@@ -362,6 +392,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 variable **iparse(instance *it, const char *s)
 {
 	uint32_t ooffset = 0;
+	int32_t boffset = 1;
 	size_t offset = 0;
 
 	while (isblank(s[offset]))
@@ -382,10 +413,11 @@ variable **iparse(instance *it, const char *s)
 				end++;
 			if (s[end] == '(') {
 				uint32_t argidx = ooffset;
-				uint32_t argcount = 0;
+				uint32_t argcount = 1;
 				ooffset++;
 				end++;
-				for (int last = end, c = 0; c >= 0; end++) {
+				uint32_t last = end;
+				for (int c = 0; c >= 0; end++) {
 					if (s[end] == '(')
 						c++;
 					if (c == 0 && last != end && (s[end] == ',' || s[end] == ')')) {
@@ -410,6 +442,8 @@ variable **iparse(instance *it, const char *s)
 				if (s[end] != '\0')
 					end++;
 				ops[argidx] = (variable *)argcount;
+			} else if (ops[ooffset - 1]->type == FUNC || ops[ooffset - 1]->type == CFUNC) {
+				ops[ooffset++] = (variable *)1;
 			}
 			offset = end;
 		} else if (isdigit(s[offset])) {
@@ -453,22 +487,23 @@ variable **iparse(instance *it, const char *s)
 			offset = i;
 		} else if (!isblank(s[offset])) {
 			size_t end = offset + 1;
-			while (!isblank(s[end]) && s[end] != '\0')
+			while (!isblank(s[end]) && !isalnum(s[end]) && s[end] != '\0')
 				end++;
 			char *word = strnclone(s + offset, end - offset);
 
 			// bracket?
-			if (!strcmp(word, "{")) {
-				it->indent++;
-				if (it->sindent & SKIP)
-					ipush(it, SKIP_SIG);
-			} else if (!strcmp(word, "}")) {
-				it->indent--;
-				if (it->indent < (it->sindent & ~(SKIP)))
-					it->sindent = 0;
-				bn_end(it);
+			if (!strcmp(word, "{") || !strcmp(word, "}")) {
+				for (int32_t i = ooffset - 1; i >= boffset - 1; i--)
+					ops[i + 2] = ops[i];
+				if (word[0] == '{')
+					ops[boffset - 1] = &bopen;
+				else
+					ops[boffset - 1] = &bclose;
+				ops[boffset] = (variable *)1; // arg count + 1
+				boffset += 2;
+				ooffset += 2;
 			} else {
-				variable *v = igetop(it, word);
+				variable *v = igetop(word);
 				if (v == 0)
 					return 0;
 				ops[ooffset++] = v;
