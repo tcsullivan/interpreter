@@ -89,13 +89,10 @@ instance *inewinstance(void)
 	return it;
 }
 
-void idelinstance(instance *it)
+void idelline(variable **ops)
 {
-	for (uint32_t i = 0; i < MAX_LINES; i++) {// TODO free vars!
-		if (it->lines[i] == 0)
-			continue;
 		for (int j = 0; j < 32; j++) {
-			variable *v = it->lines[i][j];
+			variable *v = ops[j];
 			if (v != 0) {
 				if (((uint32_t)v & OP_MAGIC) == OP_MAGIC)
 					continue;
@@ -107,7 +104,15 @@ void idelinstance(instance *it)
 					itryfree(v);
 			}
  		}
+}
 
+void idelinstance(instance *it)
+{
+	for (uint32_t i = 0; i < MAX_LINES; i++) {// TODO free vars!
+		if (it->lines[i] == 0)
+			continue;
+
+		idelline(it->lines[i]);
 		free(it->lines[i]);
 	}
 	free(it->lines);
@@ -292,6 +297,8 @@ loop:
 		}
 	}
 	it->ret = isolve(it, copy, 0);
+	if (it->ret == 0)
+		idelline(copy);
 	free(copy);
 
 	it->lnidx++;
@@ -434,6 +441,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 
 variable **iparse(instance *it, const char *s)
 {
+	variable **ops = 0;
 	uint32_t ooffset = 0;
 	int32_t boffset = 1;
 	size_t offset = 0;
@@ -441,9 +449,9 @@ variable **iparse(instance *it, const char *s)
 	while (isblank(s[offset]))
 		offset++;
 	if (s[offset] == '#' || s[offset] == '\0' || s[offset] == '\n')
-		return 0;
+		goto fail;
 
-	variable **ops = (variable **)calloc(32, sizeof(variable *));
+	ops = (variable **)calloc(32, sizeof(variable *));
 	while (s[offset] != '\0' && s[offset] != '\n') {
 		if (isalpha(s[offset])) {
 			size_t end = offset + 1;
@@ -547,8 +555,17 @@ variable **iparse(instance *it, const char *s)
 				ooffset += 2;
 			} else {
 				variable *v = igetop(word);
-				if (v == 0)
-					return 0;
+				if (v == 0) {
+					free(word);
+					goto fail;
+				} else {
+					if (ooffset == 0) {
+							ops[ooffset++] = make_varf(0, 0.0f);
+					} else if (ops[ooffset - 1]->type == OPERATOR) {
+						free(word);
+						goto fail;
+					}
+				}
 				ops[ooffset++] = v;
 			}
 			free(word);
@@ -561,4 +578,12 @@ variable **iparse(instance *it, const char *s)
 	// mark end
 	ops[ooffset] = 0;
 	return ops;
+
+fail:
+	if (ops != 0) {
+		idelline(ops);
+		free(ops);
+	}
+	return 0;
 }
+
