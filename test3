@@ -18,7 +18,7 @@ a = a + 1
 checka
 
 d = 0
-while (d < 10) {
+while (d < 20) {
 	print(d)
 	d = d + 1
 }

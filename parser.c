@@ -91,14 +91,33 @@ instance *inewinstance(void)
 
 void idelinstance(instance *it)
 {
+	for (uint32_t i = 0; i < MAX_LINES; i++) {// TODO free vars!
+		if (it->lines[i] == 0)
+			continue;
+		for (int j = 0; j < 32; j++) {
+			variable *v = it->lines[i][j];
+			if (v != 0) {
+				if (((uint32_t)v & OP_MAGIC) == OP_MAGIC)
+					continue;
+
+				if (v->type == FUNC || v->type == CFUNC)
+					j++; // argcount
+
+				if (v->tmp == 1)
+					itryfree(v);
+			}
+ 		}
+
+		free(it->lines[i]);
+	}
+	free(it->lines);
+
 	free(it->vars);
 	for (uint32_t i = 0; i < MAX_VARS; i++)
 		free(it->names[i]);
 	free(it->names);
+
 	free(it->stack);
-	for (uint32_t i = 0; i < MAX_LINES; i++) // TODO free vars!
-		free(it->lines[i]);
-	free(it->lines);
 	itryfree(it->ret);
 	free(it);
 }
@@ -251,9 +270,27 @@ loop:
 		itryfree(it->ret);
 	it->ret = 0;
 
-	variable **copy = malloc(32 * sizeof(variable *));
-	for (int i = 0; i < 32; i++)
-		copy[i] = it->lines[it->lnidx][i];
+	variable **copy = (variable **)malloc(32 * sizeof(variable *));
+	for (int i = 0; i < 32; i++) {
+		variable *v = it->lines[it->lnidx][i];
+		if (v != 0) {
+			if (((uint32_t)v & OP_MAGIC) == OP_MAGIC) {
+				copy[i] = v;
+				continue;
+			}
+
+			if (v->tmp == 1)
+				copy[i] = varclone(v);
+			else
+				copy[i] = v;
+			if (v->type == FUNC || v->type == CFUNC) {
+				i++;
+				copy[i] = it->lines[it->lnidx][i]; // argcount
+			}
+		} else {
+			copy[i] = 0;
+		}
+	}
 	it->ret = isolve(it, copy, 0);
 	free(copy);
 
@@ -340,7 +377,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 
 			ops[start + 1] = 0;
 			for (uint32_t j = start + 2; j < i; j++) {
-				//itryfree(ops[j]);
+				itryfree(ops[j]);
 				ops[j] = 0;
 			}
 		}
@@ -368,23 +405,29 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 				if (bidx == count)
 					return 0;
 
-				if (it->sindent & SKIP) {
-					//itryfree(ops[aidx]);
-					//itryfree(ops[bidx]);
-					ops[aidx] = 0;
-				} else {
-					variable *v = varclone(ops[aidx]);
+				if (!(it->sindent & SKIP)) {
+					variable *v = !ops[aidx]->tmp ? varclone(ops[aidx]) : ops[aidx];
 					if (func(v, ops[aidx], ops[bidx]) != 0)
 						return 0;
-					//itryfree(ops[aidx]);
 					ops[aidx] = v;
-					//itryfree(ops[bidx]);
+				} else {
+					itryfree(ops[aidx]);
+					ops[aidx] = 0;
 				}
-				ops[i] = 0;
+				itryfree(ops[bidx]);
 				ops[bidx] = 0;
+				ops[i] = 0;
 			}
 		}
 	}
+
+	// implicit multiply
+	/*if (ops[0] != 0 && ops[0]->type == NUMBER) {
+		for (uint32_t i = 1; i < count; i++) {
+			if (ops[i] != 0 && ops[i]->type == NUMBER)
+				ops[0]->value.f *= ops[i]->value.f;
+		}
+	}*/
 
 	return ops[0];
 }
@@ -446,7 +489,7 @@ variable **iparse(instance *it, const char *s)
 				ops[ooffset++] = (variable *)1;
 			}
 			offset = end;
-		} else if (isdigit(s[offset])) {
+		} else if (isdigit(s[offset])) {// || (s[offset] == '-' && isdigit(s[offset + 1]))) {
 			size_t end = offset + 1;
 			while (isdigit(s[end]) || s[end] == '.')
 				end++;
