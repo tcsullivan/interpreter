@@ -1,24 +1,50 @@
+/**
+ * @file variable.h
+ * Defines variable data structure
+ *
+ * Copyright (C) 2018 Clyne Sullivan
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #ifndef VARIABLE_H_
 #define VARIABLE_H_
 
 #include <stdint.h>
 
+/**
+ * Data for a script variable.
+ */
 typedef struct {
-	uint8_t tmp    :1;
-	uint8_t type   :3;
-	uint8_t unused :4;
+	uint8_t tmp    :1; /**< If zero, variable cannot be free'd */
+	uint8_t type   :3; /**< The variable's type */
+	uint8_t unused :4; /**< Unused... */
 	union {
 		float f;
 		uint32_t p;
-	} value;
+	} value; /**< The variable's value, either float or a pointer */
 } variable;
 
+/**
+ * Defines possible variable types.
+ */
 enum VARTYPE {
-	NUMBER = 0,
-	STRING,
-	OPERATOR,
-	FUNC,
-	CFUNC,
+	NUMBER = 0, /**< Number/float */
+	STRING,     /**< String of text */
+	OPERATOR,   /**< Arithmetical operation */
+	FUNC,       /**< In-script function */
+	CFUNC,      /**< C function */
 };
 
 #endif // VARIABLE_H_
