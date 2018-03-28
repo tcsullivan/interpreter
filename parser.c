@@ -290,12 +290,13 @@ int idoline(instance *it, const char *s)
 		return 0;
 	it->lines[it->lnidx] = ops;
 
+	variable **copy;
 loop:
-	if (it->ret != 0)
-		itryfree(it->ret);
-	it->ret = 0;
+	//if (it->ret != 0)
+	//	itryfree(it->ret);
+	//it->ret = 0;
 
-	variable **copy = (variable **)malloc(32 * sizeof(variable *));
+	copy = (variable **)malloc(32 * sizeof(variable *));
 	for (int i = 0; i < 32; i++) {
 		variable *v = it->lines[it->lnidx][i];
 		if (v != 0) {
@@ -317,8 +318,15 @@ loop:
 		}
 	}
 	it->ret = isolve(it, copy, 0);
-	if (it->ret == 0)
+	if (it->ret == 0) {
 		idelline(copy);
+	} else {
+		variable *ret = igetvar(it, "ANS");
+		ret->type = it->ret->type;
+		ret->value.p = it->ret->value.p;
+		it->ret = ret;
+	}
+
 	free(copy);
 
 	it->lnidx++;
@@ -580,7 +588,12 @@ variable **iparse(instance *it, const char *s)
 					goto fail;
 				} else {
 					if (ooffset == 0) {
-							ops[ooffset++] = make_varf(0, 0.0f);
+						variable *a;
+						if (it->ret != 0)
+							a = it->ret;
+						else
+							a = make_varf(0, 0.0f);
+						ops[ooffset++] = a;
 					} else if (ops[ooffset - 1]->type == OPERATOR) {
 						free(word);
 						goto fail;

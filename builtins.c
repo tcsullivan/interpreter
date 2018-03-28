@@ -133,8 +133,10 @@ int bn_solve(instance *it)
 {
 	variable *s = igetarg(it, 0);
 	variable **ops = iparse(it, (const char *)s->value.p);
-	if (ops == 0)
-		return -1;
+	if (ops == 0) {
+		ipush(it, (uint32_t)make_varf(0, 0.0f));
+		return 0;
+	}
 
 	variable *a = isolve(it, ops, 0);
 	free(ops);
