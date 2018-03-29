@@ -19,6 +19,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * Built-ins are functions that are meant to be included in every interpreter
+ * instance. That is, the interpreter would be near worthless as a scripting
+ * language without these functions.
+ *
+ * A built-in function takes an instance, and returns an error code (zero if
+ * successful). Arguments to the function can be obtained through igetarg().
+ * Built-in functions have full access to the instance, its variables and
+ * stack. To return a variable, push that variable to the stack at the end of
+ * the function. If stack values are inserted by the function, push a zero so
+ * error doesn't occur.
+ */
+
 #include "builtins.h"
 
 #include <stdlib.h>
@@ -28,7 +41,14 @@
 #define ELSE_SIG  (uint32_t)-3
 #define FUNC_SIG  (uint32_t)-4
 
-int bn_set(instance *it);
+variable bopen = {
+	0, CFUNC, 0, {.p = (uint32_t)bracket_open}
+};
+
+variable bclose = {
+	0, CFUNC, 0, {.p = (uint32_t)bracket_close}
+};
+
 int bn_if(instance *it);
 int bn_else(instance *it);
 int bn_end(instance *it);
@@ -38,7 +58,6 @@ int bn_solve(instance *it);
 
 void iload_builtins(instance *it)
 {
-	inew_cfunc(it, "set", bn_set);
 	inew_cfunc(it, "if", bn_if);
 	inew_cfunc(it, "else", bn_else);
 	inew_cfunc(it, "while", bn_while);
@@ -46,13 +65,30 @@ void iload_builtins(instance *it)
 	inew_cfunc(it, "solve", bn_solve);
 }
 
-int bn_set(instance *it)
+/**
+ * Code for an opening bracket ('{', new scope).
+ */
+int bracket_open(instance *it)
 {
-	variable *var = igetarg(it, 0);
-	variable *value = igetarg(it, 1);
-	var->type = value->type;
-	var->value.p = value->value.p;
-	ipush(it, (uint32_t)var);
+	it->indent++;
+	if (it->sindent & SKIP) {
+		// make sure this indent is caught by its closing '}'.
+		ipush(it, SKIP_SIG);
+		ipush(it, 0);
+	}
+	return 0;
+}
+
+/**
+ * Code for a closing bracket ('}', end of scope)
+ */
+int bracket_close(instance *it)
+{
+	it->indent--;
+	// stop skipping if this is the end of the skipped scope
+	if (it->indent < (it->sindent & ~(SKIP)))
+		it->sindent = 0;
+	bn_end(it);
 	return 0;
 }
 
@@ -82,6 +118,14 @@ int bn_else(instance *it)
 	return 0;
 }
 
+/**
+ * bn_end is a special function. The parser is hard-coded to interpret '}'
+ * characters as calls to this function, which handles closing loops or
+ * conditionals.
+ *
+ * The most recent value on the stack should determine what loop is being
+ * closed, so that action can be taken accordingly.
+ */
 int bn_end(instance *it)
 {
 	uint32_t sig = ipop(it);
@@ -94,7 +138,7 @@ int bn_end(instance *it)
 	} else if (sig == CALL_SIG) {
 		it->lnidx = ipop(it);
 		it->indent++;
-	}
+	} // else, just have *_SIG popped
  	return 0;
 }
 
@@ -118,9 +162,6 @@ int bn_while(instance *it)
 int bn_func(instance *it)
 {
 	variable *f = igetarg(it, 0);
-	if (f == 0)
-		return -1;
-
 	f->type = FUNC;
 	f->value.p = it->lnidx;
 	it->sindent = SKIP | it->indent;
@@ -135,6 +176,7 @@ int bn_solve(instance *it)
 	variable **ops = iparse(it, (const char *)s->value.p);
 	if (ops == 0) {
 		ipush(it, (uint32_t)make_varf(0, 0.0f));
+		// return zero, don't let bad solves break the script
 		return 0;
 	}
 

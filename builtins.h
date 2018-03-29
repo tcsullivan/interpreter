@@ -27,6 +27,15 @@
 #define SKIP_SIG (uint32_t)-5
 #define CALL_SIG (uint32_t)-6
 
+// open bracket 'operator', for use in a compiled line
+extern variable bopen;
+
+// close bracket 'operator', for use in a compiled line
+extern variable bclose;
+
+int bracket_open(instance *it);
+int bracket_close(instance *it);
+
 /**
  * Loads the built-in functions into the given instance.
  * @param it the instance to use

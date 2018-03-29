@@ -42,4 +42,12 @@ extern variable opvars[];
  */
 extern const char *opnames[];
 
+/**
+ * Gets the variable for the given operator.
+ * @param name the operator (e.g. "+")
+ * @param retlen if not null, stores the operator string's length here
+ * @return variable for the operator, zero if not found
+ */
+variable *igetop(const char *name, int *retlen);
+
 #endif // OPS_H_

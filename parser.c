@@ -22,67 +22,26 @@
 
 #include "builtins.h"
 #include "ops.h"
+#include "string.h"
+#include "variable.h"
 
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+
+/**
+ * Limitations for an instance. TODO make dynamic (no limits).
+ */
 
 #define MAX_VARS  256
 #define MAX_STACK 64
 #define MAX_LINES 1000
 
-int bracket_open(instance *it)
-{
-	it->indent++;
-	if (it->sindent & SKIP) {
-		ipush(it, SKIP_SIG);
-		ipush(it, 0);
-	}
-	return 0;
-}
-int bracket_close(instance *it)
-{
-	it->indent--;
-	if (it->indent < (it->sindent & ~(SKIP)))
-		it->sindent = 0;
-	bn_end(it);
-	return 0;
-}
-static variable bopen = {
-	0, CFUNC, 0, {.p = (uint32_t)bracket_open}
-};
-static variable bclose = {
-	0, CFUNC, 0, {.p = (uint32_t)bracket_close}
-};
-
-char *strnclone(const char *s, size_t c)
-{
-	char *b = strncpy((char *)malloc(c + 1), s, c);
-	b[c] = '\0';
-	return b;
-}
-char *strclone(const char *s)
-{
-	return strnclone(s, strlen(s)); 
-}
-char *fixstring(const char *s)
-{
-	char *n = malloc(strlen(s) + 1 - 2);
-	int j = 0;
-	for (int i = 1; s[i] != '\"'; i++, j++) {
-		if (s[i] == '\\') {
-			if (s[i + 1] == 'n')
-				n[j] = '\n';
-			i++;
-		} else {
-			n[j] = s[i];
-		}
-	}
-	n[j] = '\0';
-	return n;
-}
-
+/**
+ * Attempts to free memory used by a variable, if the variable is temporary.
+ * Nothing is done if the variable can't be free'd.
+ * @param v the variable to free
+ */
 void itryfree(variable *v)
 {
 	if (v == 0 || v->tmp == 0)
@@ -91,6 +50,10 @@ void itryfree(variable *v)
 		free((void *)v->value.p);
 	free(v);
 }
+
+//
+// instance construction/deconstruction
+//
 
 instance *inewinstance(void)
 {
@@ -109,26 +72,10 @@ instance *inewinstance(void)
 	return it;
 }
 
-void idelline(variable **ops)
-{
-		for (int j = 0; j < 32; j++) {
-			variable *v = ops[j];
-			if (v != 0) {
-				if (((uint32_t)v & OP_MAGIC) == OP_MAGIC)
-					continue;
-
-				if (v->type == FUNC || v->type == CFUNC)
-					j++; // argcount
-
-				if (v->tmp == 1)
-					itryfree(v);
-			}
- 		}
-}
-
+void idelline(variable **ops);
 void idelinstance(instance *it)
 {
-	for (uint32_t i = 0; i < MAX_LINES; i++) {// TODO free vars!
+	for (uint32_t i = 0; i < MAX_LINES; i++) {
 		if (it->lines[i] == 0)
 			continue;
 
@@ -146,6 +93,27 @@ void idelinstance(instance *it)
 	itryfree(it->ret);
 	free(it);
 }
+
+void idelline(variable **ops)
+{
+	for (int j = 0; j < 32; j++) {
+		variable *v = ops[j];
+		if (v != 0) {
+			if (((uint32_t)v & OP_MAGIC) == OP_MAGIC)
+				continue;
+
+			if (v->type == FUNC || v->type == CFUNC)
+				j++; // argcount
+
+			if (v->tmp == 1)
+				itryfree(v);
+		}
+	}
+}
+
+//
+// stack operations
+//
 
 void ipush(instance *it, uint32_t v)
 {
@@ -167,7 +135,27 @@ variable *igetarg(instance *it, uint32_t n)
 	return (variable *)it->stack[it->stidx - n - 1];
 }
 
-variable *igetvar(instance *it, const char *name);
+//
+// variable creation
+//
+
+variable *igetvar(instance *it, const char *name)
+{
+	if (isalpha(name[0])) {
+		for (uint32_t i = 0; i < MAX_VARS; i++) {
+			if (it->names[i] == 0) {
+				it->names[i] = strclone(name);
+				// default to 0 float
+				return make_varf(&it->vars[i], 0.0f);
+			} else if (!strcmp(name, it->names[i])) {
+				return &it->vars[i];
+			}
+		}
+	}
+
+	return igetop(name, 0);
+}
+
 void inew_cfunc(instance *it, const char *name, func_t func)
 {
 	variable *v = igetvar(it, name);
@@ -189,100 +177,6 @@ void inew_string(instance *it, const char *name, const char *s)
 	v->value.p = (uint32_t)strclone(s);
 }
 
-variable *varclone(variable *n)
-{
-	variable *v = (variable *)malloc(sizeof(variable));
-	v->tmp = 1;
-	v->type = n->type;
-	if (n->type == STRING)
-		v->value.p = (uint32_t)strclone((char *)n->value.p);
-	else
-		v->value.p = n->value.p;
-	return v;
-}
-
-variable *make_varf(variable *v, float f)
-{
-	if (v == 0) {
-		v = (variable *)malloc(sizeof(variable));
-		v->tmp = 1;
-	}
-	v->type = NUMBER;
-	v->value.f = f;
-	return v;
-}
-
-variable *make_vars(variable *v, const char *s)
-{
-	if (v == 0) {
-		v = (variable *)malloc(sizeof(variable));
-		v->tmp = 1;
-	}
-	v->type = STRING;
-	v->value.p = (uint32_t)strclone(s);
-	return v;
-}
-
-variable *make_num(const char *text)
-{
-	int decimal = -1;
-	char valid = 0;
-
-	int i = 0;
-	if (text[0] == '-')
-		i++;
-	do {
-		if (text[i] == '.') {
-			if (decimal >= 0) {
-				valid = 0;
-				break;
-			}
-			decimal = i;
-		} else if (isdigit(text[i])) {
-			valid |= 1;
-		} else {
-			break;
-		}
-	} while (text[++i] != '\0');
-
-	if (valid == 0)
-		return 0;
-
-	char *buf = (char *)malloc(i + 1);
-	strncpy(buf, text, i);
-	buf[i] = '\0';
-
-	variable *v = make_varf(0, strtof(buf, 0));
-	free(buf);
-	return v;
-}
-
-variable *igetop(const char *name)
-{
-	for (uint32_t i = 0; i < OPS_COUNT; i++) {
-		if (opnames[i] != 0 && !strcmp(name, opnames[i])) {
-			return &opvars[i];
-		}
-	}
-	return 0;
-}
-variable *igetvar(instance *it, const char *name)
-{
-	if (isalpha(name[0])) {
-		for (uint32_t i = 0; i < MAX_VARS; i++) {
-			if (it->names[i] == 0) {
-				it->names[i] = strclone(name);
-				// default to 0 float
-				return make_varf(&it->vars[i], 0.0f);
-			} else if (!strcmp(name, it->names[i])) {
-				return &it->vars[i];
-			}
-		}
-	}
-
-	return igetop(name);
-}
-
 int idoline(instance *it, const char *s)
 {
 	variable **ops = iparse(it, s);
@@ -296,6 +190,8 @@ loop:
 	//	itryfree(it->ret);
 	//it->ret = 0;
 
+	// clone the 'ops' array carefully, as isolve() frees/deletes used
+	// variables as it goes
 	copy = (variable **)malloc(32 * sizeof(variable *));
 	for (int i = 0; i < 32; i++) {
 		variable *v = it->lines[it->lnidx][i];
@@ -318,9 +214,11 @@ loop:
 		}
 	}
 	it->ret = isolve(it, copy, 0);
+
 	if (it->ret == 0) {
 		idelline(copy);
 	} else {
+		// move result global variable "ANS"
 		variable *ret = igetvar(it, "ANS");
 		ret->type = it->ret->type;
 		ret->value.p = it->ret->value.p;
@@ -437,7 +335,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 					return 0;
 				uint32_t bidx = i + 1;
 				while (ops[bidx] == 0 && ++bidx < count);
-				if (bidx == count)
+				if (bidx >= count)
 					return 0;
 
 				if (!(it->sindent & SKIP)) {
@@ -474,13 +372,18 @@ variable **iparse(instance *it, const char *s)
 	int32_t boffset = 1;
 	size_t offset = 0;
 
+	// advance to first character
+	// and insure there's runnable script on the line
 	while (isblank(s[offset]))
 		offset++;
 	if (s[offset] == '#' || s[offset] == '\0' || s[offset] == '\n')
 		goto fail;
 
+	// iterate through script to assemble line of 'ops'
+	// that isolve() can run through
 	ops = (variable **)calloc(32, sizeof(variable *));
 	while (s[offset] != '\0' && s[offset] != '\n') {
+		// variable or function
 		if (isalpha(s[offset])) {
 			size_t end = offset + 1;
 			while (isalnum(s[end]))
@@ -565,44 +468,32 @@ variable **iparse(instance *it, const char *s)
 			ops[parenidx] = (variable *)(OP_MAGIC | count);
 			offset = i;
 		} else if (!isblank(s[offset])) {
-			size_t end = offset + 1;
-			while (!isblank(s[end]) && !isalnum(s[end]) && s[end] != '\0')
-				end++;
-			char *word = strnclone(s + offset, end - offset);
-
-			// bracket?
-			if (!strcmp(word, "{") || !strcmp(word, "}")) {
+			if (s[offset] == '{' || s[offset] == '}') {
 				for (int32_t i = ooffset - 1; i >= boffset - 1; i--)
 					ops[i + 2] = ops[i];
-				if (word[0] == '{')
+				if (s[offset] == '{')
 					ops[boffset - 1] = &bopen;
 				else
 					ops[boffset - 1] = &bclose;
 				ops[boffset] = (variable *)1; // arg count + 1
 				boffset += 2;
 				ooffset += 2;
+				offset++;
 			} else {
-				variable *v = igetop(word);
-				if (v == 0) {
-					free(word);
+				int len = 0;
+				variable *v = igetop(s + offset, &len);
+				if (v == 0)
 					goto fail;
-				} else {
-					if (ooffset == 0) {
-						variable *a;
-						if (it->ret != 0)
-							a = it->ret;
-						else
-							a = make_varf(0, 0.0f);
-						ops[ooffset++] = a;
-					} else if (ops[ooffset - 1]->type == OPERATOR) {
-						free(word);
-						goto fail;
-					}
-				}
+				if (ooffset == 0) {
+					variable *a = (it->ret != 0) ?
+						a = it->ret : make_varf(0, 0.0f);
+					ops[ooffset++] = a;
+				} /*else if (ops[ooffset - 1]->type == OPERATOR) {
+					goto fail;
+				}*/
 				ops[ooffset++] = v;
+				offset += len;
 			}
-			free(word);
-			offset = end;
 		} else {
 			offset++;
 		}

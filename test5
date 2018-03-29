@@ -2,7 +2,7 @@
 # solver test
 
 while (1) {
-	input = gets()
+	input = gets
 	if (input == "exit") {
 		exit
 	}

@@ -101,8 +101,6 @@ void ipush(instance *it, uint32_t v);
  */
 variable *igetarg(instance *it, uint32_t n);
 
-
-
 /**
  * Parses the given line, returning compiled data to run.
  * For internal use only.
@@ -121,21 +119,5 @@ variable **iparse(instance *it, const char *s);
  * @return the variable returned by the line, null if none
  */
 variable *isolve(instance *it, variable **ops, uint32_t count);
-
-/**
- * Makes a number out of the given variable.
- * @param v the variable to use, if zero one is malloc'd
- * @param f the number to assign the variable
- * @return the new float variable
- */
-variable *make_varf(variable *v, float f);
-
-/**
- * Makes a string out of the given variable.
- * @param v the variable to use, if zero one is malloc'd
- * @param f the string to assign the variable
- * @return the new string variable
- */
-variable *make_vars(variable *v, const char *s);
 
 #endif // PARSER_H_

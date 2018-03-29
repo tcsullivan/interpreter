@@ -1,6 +1,7 @@
 /**
  * @file variable.h
- * Defines variable data structure
+ * Defines variable data structure, and provides functions for variable
+ * creation.
  *
  * Copyright (C) 2018 Clyne Sullivan
  *
@@ -46,5 +47,35 @@ enum VARTYPE {
 	FUNC,       /**< In-script function */
 	CFUNC,      /**< C function */
 };
+
+/**
+ * Makes a number out of the given variable.
+ * @param v the variable to use, if zero one is malloc'd
+ * @param f the number to assign the variable
+ * @return the new float variable
+ */
+variable *make_varf(variable *v, float f);
+
+/**
+ * Makes a string out of the given variable.
+ * @param v the variable to use, if zero one is malloc'd
+ * @param f the string to assign the variable
+ * @return the new string variable
+ */
+variable *make_vars(variable *v, const char *s);
+
+/**
+ * Creates a temporary number variable out of the given text.
+ * @param text the string to convert to a number
+ * @return a number variable with the converted value
+ */
+variable *make_num(const char *text);
+
+/**
+ * Clones a variable into a new, malloc'd variable.
+ * @param n the variable to clone
+ * @return the cloned, malloc'd variable
+ */
+variable *varclone(variable *n);
 
 #endif // VARIABLE_H_
