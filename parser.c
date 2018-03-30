@@ -402,7 +402,7 @@ variable **iparse(instance *it, const char *s)
 				for (int c = 0; c >= 0; end++) {
 					if (s[end] == '(')
 						c++;
-					if (c == 0 && last != end && (s[end] == ',' || s[end] == ')')) {
+					if (c == 0 && last != end && (s[end] == ',' || s[end] == ')' || s[end] == '\0')) {
 						argcount++;
 						char *arg = strnclone(s + last, end - last);
 						uint32_t parenidx = ooffset;
@@ -418,7 +418,7 @@ variable **iparse(instance *it, const char *s)
 						ops[parenidx] = (variable *)(OP_MAGIC | count);
 						last = end + 1;
 					}
-					if (s[end] == ')')
+					if (s[end] == ')' || s[end] == '\0')
 						c--;
 				}
 				if (s[end] != '\0')

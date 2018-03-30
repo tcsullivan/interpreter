@@ -79,6 +79,14 @@ int idoline(instance *it, const char *s);
 void inew_cfunc(instance *it, const char *name, func_t func);
 
 /**
+ * Creates a script-accessible float number.
+ * @param it the current instance
+ * @param name the name of the new variable
+ * @param f the variable's initial value
+ */
+void inew_number(instance *it, const char *name, float f);
+
+/**
  * Pops a word from the instance's stack.
  * @param it the current instance
  * @return the popped value
