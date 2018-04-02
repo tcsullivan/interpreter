@@ -19,6 +19,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "parser.h"
@@ -37,6 +38,18 @@ int print(instance *it)
 	return 0;
 }
 
+int gets(instance *it)
+{
+	char *line = 0;
+	size_t size;
+	getline(&line, &size, stdin);
+	*strchr(line, '\n') = '\0';
+	variable *v = make_vars(0, line);
+	free(line);
+	ipush(it, (uint32_t)v);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 2) {
@@ -52,20 +65,21 @@ int main(int argc, char **argv)
 
 	instance *it = inewinstance();
 	inew_cfunc(it, "print", print);
+	inew_cfunc(it, "gets", gets);
 
 	char *line = 0;
 	size_t size;
 	int result;
 	while (getline(&line, &size, fp) != -1) {
 		*strchr(line, '\n') = '\0';
-		result = idoline(it, line);
+		result = iaddline(it, line);
 		if (result != 0)
 			printf("Error: %d\n", result);
-		//if (it->ret != 0)
-		//	printf("%s = %f\n", line, it->ret->value.f);
 	}
-
+	free(line);
 	fclose(fp);
+
+	irun(it);
 	idelinstance(it);
 	return 0;
 }

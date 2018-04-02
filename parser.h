@@ -63,12 +63,20 @@ instance *inewinstance(void);
 void idelinstance(instance *it);
 
 /**
- * Adds and runs the line through the parser instance.
- * This parses and runs the line, while storing it at the current line index.
- * @param it the current instance
- * @param s the line to parse/run
+ * Parses the given line of script, and adds it to the end of the instance's
+ * stored script.
+ * @param it the instance to use
+ * @param s the line to load
+ * @return zero for success, otherwise error
  */
-int idoline(instance *it, const char *s);
+int iaddline(instance *it, const char *s);
+
+/**
+ * Runs the instance with its loaded script until there's nothing more to run.
+ * @param the instance to use
+ * @return an error code, or zero if success
+ */
+int irun(instance *it);
 
 /**
  * Makes a C function visible to the script.

@@ -84,9 +84,12 @@ void idelinstance(instance *it)
 	}
 	free(it->lines);
 
-	free(it->vars);
-	for (uint32_t i = 0; i < MAX_VARS; i++)
+	for (uint32_t i = 0; i < MAX_VARS; i++) {
+		if (it->vars[i].type == STRING)
+			free((void *)it->vars[i].value.p);
 		free(it->names[i]);
+	}
+	free(it->vars);
 	free(it->names);
 
 	free(it->stack);
@@ -177,14 +180,20 @@ void inew_string(instance *it, const char *name, const char *s)
 	v->value.p = (uint32_t)strclone(s);
 }
 
-int idoline(instance *it, const char *s)
+int iaddline(instance *it, const char *s)
 {
 	variable **ops = iparse(it, s);
 	if (ops == 0)
 		return 0;
 	it->lines[it->lnidx] = ops;
+	it->lnidx++;
+	return 0;
+}
 
+int irun(instance *it)
+{
 	variable **copy;
+	it->lnidx = 0;
 loop:
 	//if (it->ret != 0)
 	//	itryfree(it->ret);
@@ -222,6 +231,7 @@ loop:
 		variable *ret = igetvar(it, "ANS");
 		ret->type = it->ret->type;
 		ret->value.p = it->ret->value.p;
+		itryfree(it->ret);
 		it->ret = ret;
 	}
 

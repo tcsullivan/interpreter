@@ -1,0 +1,12 @@
+go = 1
+while (go == 1) {
+	print("> ")
+	input = gets()
+	answer = solve(input)
+	if (answer == 42) {
+		go = 0
+	}
+	print("\n")
+	print(answer)
+	print("\n")
+}

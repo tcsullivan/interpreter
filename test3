@@ -11,11 +11,11 @@ func(checka) {
 	}
 }
 
-checka
+checka()
 
 print("Increment a...")
 a = a + 1
-checka
+checka()
 
 d = 0
 while (d < 20) {

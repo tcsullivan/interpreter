@@ -193,7 +193,8 @@ OP_DEF(eq)
 	else if (a->type == STRING && b->type == STRING)
 		r->value.f = !strcmp((const char *)a->value.p, (const char *)b->value.p);
 	else
-		return seterror(EBADPARAM);
+		r->value.f = 0.0f; // *sshhh*
+		//return seterror(EBADPARAM);
 
 	return 0;
 }
