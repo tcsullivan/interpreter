@@ -75,6 +75,8 @@ instance *inewinstance(void)
 void idelline(variable **ops);
 void idelinstance(instance *it)
 {
+	itryfree(it->ret);
+
 	for (uint32_t i = 0; i < MAX_LINES; i++) {
 		if (it->lines[i] == 0)
 			continue;
@@ -93,7 +95,6 @@ void idelinstance(instance *it)
 	free(it->names);
 
 	free(it->stack);
-	itryfree(it->ret);
 	free(it);
 }
 
@@ -230,7 +231,12 @@ loop:
 		// move result global variable "ANS"
 		variable *ret = igetvar(it, "ANS");
 		ret->type = it->ret->type;
-		ret->value.p = it->ret->value.p;
+		if (ret->type == STRING) {
+			free((void *)ret->value.p);
+			ret->value.p = (uint32_t)strclone((char *)it->ret->value.p);
+		} else {
+			ret->value.p = it->ret->value.p;
+		}
 		itryfree(it->ret);
 		it->ret = ret;
 	}
@@ -349,7 +355,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 					return 0;
 
 				if (!(it->sindent & SKIP)) {
-					variable *v = !ops[aidx]->tmp ? varclone(ops[aidx]) : ops[aidx];
+					variable *v = !ops[aidx]->tmp ? make_varf(0, 0.0f) : ops[aidx];
 					if (func(v, ops[aidx], ops[bidx]) != 0)
 						return 0;
 					ops[aidx] = v;

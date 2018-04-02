@@ -239,8 +239,7 @@ OP_DEF(set)
 		r->value.f = a->value.f;
 	} else if (b->type == STRING) {
 		a->type = STRING;
-		if (a->value.p != 0)
-			free((void *)a->value.p);
+		free((void *)a->value.p);
 		a->value.p = (uint32_t)strclone((char *)b->value.p);
 		r->type = STRING;
 		r->value.p = (uint32_t)strclone((char *)a->value.p);

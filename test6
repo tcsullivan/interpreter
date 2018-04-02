@@ -1,0 +1,10 @@
+# test6
+# used to fix memory leak in setting defined strings
+
+test = "hello"
+test = "fail"
+a = test
+test = "acd"
+
+print(a)
+print(test)
