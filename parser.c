@@ -230,13 +230,13 @@ loop:
 	} else {
 		// move result global variable "ANS"
 		variable *ret = igetvar(it, "ANS");
-		ret->type = it->ret->type;
-		if (ret->type == STRING) {
+		if (ret->type == STRING)
 			free((void *)ret->value.p);
+		ret->type = it->ret->type;
+		if (ret->type == STRING)
 			ret->value.p = (uint32_t)strclone((char *)it->ret->value.p);
-		} else {
+		else
 			ret->value.p = it->ret->value.p;
-		}
 		itryfree(it->ret);
 		it->ret = ret;
 	}
