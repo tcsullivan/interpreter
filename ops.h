@@ -26,11 +26,11 @@
 /**
  * Defines the number of available operators.
  */
-#define OPS_COUNT 18
+#define OPS_COUNT 20
 
 #define OP_MAGIC  0xCAFE3900
 
-typedef int (*opfunc_t)(variable *, variable *, variable *);
+typedef int (*opfunc_t)(variable **, variable *, variable *);
 
 /**
  * An array of variable objects for each operator, exposed for the parser.

@@ -46,8 +46,9 @@ void itryfree(variable *v)
 {
 	if (v == 0 || v->tmp == 0)
 		return;
-	if (v->type == STRING)
+	if (v->type == STRING)// || v->array > 0)
 		free((void *)v->value.p);
+
 	free(v);
 }
 
@@ -87,7 +88,7 @@ void idelinstance(instance *it)
 	free(it->lines);
 
 	for (uint32_t i = 0; i < MAX_VARS; i++) {
-		if (it->vars[i].type == STRING)
+		if (it->vars[i].type == STRING || it->vars[i].array > 0)
 			free((void *)it->vars[i].value.p);
 		free(it->names[i]);
 	}
@@ -356,7 +357,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 
 				if (!(it->sindent & SKIP)) {
 					variable *v = !ops[aidx]->tmp ? make_varf(0, 0.0f) : ops[aidx];
-					if (func(v, ops[aidx], ops[bidx]) != 0)
+					if (func(&v, ops[aidx], ops[bidx]) != 0)
 						return 0;
 					ops[aidx] = v;
 				} else {
@@ -387,6 +388,7 @@ variable **iparse(instance *it, const char *s)
 	uint32_t ooffset = 0;
 	int32_t boffset = 1;
 	size_t offset = 0;
+	uint8_t prevNum = 0;
 
 	// advance to first character
 	// and insure there's runnable script on the line
@@ -442,6 +444,8 @@ variable **iparse(instance *it, const char *s)
 				ops[argidx] = (variable *)argcount;
 			} else if (ops[ooffset - 1]->type == FUNC || ops[ooffset - 1]->type == CFUNC) {
 				ops[ooffset++] = (variable *)1;
+			} else {
+				prevNum += 2;
 			}
 			offset = end;
 		} else if (isdigit(s[offset])) {// || (s[offset] == '-' && isdigit(s[offset + 1]))) {
@@ -452,6 +456,7 @@ variable **iparse(instance *it, const char *s)
 			ops[ooffset++] = make_num(word);
 			free(word);
 			offset = end;
+			prevNum += 2;
 		} else if (s[offset] == '\"') {
 			size_t end = offset + 1;
 			while (s[end] != '\"')// && s[end - 1] == '\\')
@@ -483,6 +488,15 @@ variable **iparse(instance *it, const char *s)
 			free(word);
 			ops[parenidx] = (variable *)(OP_MAGIC | count);
 			offset = i;
+			prevNum += 2;
+		} else if (s[offset] == '[') {
+			/*uint32_t i = offset + 1;
+			uint32_t j = i;
+			while (s[offset] != ']') {
+				if (s[offset] == ';') {
+
+				}
+			}*/
 		} else if (!isblank(s[offset])) {
 			if (s[offset] == '{' || s[offset] == '}') {
 				for (int32_t i = ooffset - 1; i >= boffset - 1; i--)
@@ -512,6 +526,16 @@ variable **iparse(instance *it, const char *s)
 			}
 		} else {
 			offset++;
+		}
+
+		if (prevNum > 0) {
+			if (--prevNum == 2) {
+				--prevNum;
+				variable *mul = igetop("*", 0);
+				ops[ooffset] = ops[ooffset - 1];
+				ops[ooffset - 1] = mul;
+				ooffset++;
+			}
 		}
 	}
 

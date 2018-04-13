@@ -42,11 +42,11 @@
 #define FUNC_SIG  (uint32_t)-4
 
 variable bopen = {
-	0, CFUNC, 0, {.p = (uint32_t)bracket_open}
+	0, CFUNC, 0, 0, {.p = (uint32_t)bracket_open}
 };
 
 variable bclose = {
-	0, CFUNC, 0, {.p = (uint32_t)bracket_close}
+	0, CFUNC, 0, 0, {.p = (uint32_t)bracket_close}
 };
 
 int bn_if(instance *it);
@@ -55,6 +55,7 @@ int bn_end(instance *it);
 int bn_while(instance *it);
 int bn_func(instance *it);
 int bn_solve(instance *it);
+int bn_array(instance *it);
 
 void iload_builtins(instance *it)
 {
@@ -63,6 +64,7 @@ void iload_builtins(instance *it)
 	inew_cfunc(it, "while", bn_while);
 	inew_cfunc(it, "func", bn_func);
 	inew_cfunc(it, "solve", bn_solve);
+	inew_cfunc(it, "array", bn_array);
 }
 
 /**
@@ -187,3 +189,15 @@ int bn_solve(instance *it)
 	return 0;
 }
 
+int bn_array(instance *it)
+{
+	variable *a = igetarg(it, 0);
+	int size = igetarg(it, 1)->value.f;
+	uint32_t i0 = a->value.p;
+	variable *array = calloc(size, sizeof(variable));
+	array[0].type = a->type;
+	array[0].value.p = i0;
+	a->array = size;
+	a->value.p = (uint32_t)array;
+	return 0;
+}

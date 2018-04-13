@@ -31,6 +31,7 @@ typedef struct {
 	uint8_t tmp    :1; /**< If zero, variable cannot be free'd */
 	uint8_t type   :3; /**< The variable's type */
 	uint8_t unused :4; /**< Unused... */
+	uint8_t array;     /**< ">0?" -> array w/ this size */
 	union {
 		float f;
 		uint32_t p;
