@@ -1,0 +1,14 @@
+j = 6
+
+func(test) {
+	i = 0
+	while (i < 10) {
+		i = i + 1
+	}
+
+	j = 15
+}
+
+print(i)
+print(" ")
+print(j)

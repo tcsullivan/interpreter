@@ -1,0 +1,13 @@
+# test4
+# find memory leaks
+
+#x = 4
+#y = solve("x-2")
+#print(y)
+#print("")
+
+#y = solve("3*x")
+#print(y)
+
+y = solve("-")
+#y = solve("x*x*x*x*x")

@@ -1,0 +1,3 @@
+a = "a"
+append(append(append(a, "llo"), " mate!"), 37)
+print(a)

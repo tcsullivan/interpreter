@@ -1,0 +1,25 @@
+# test3
+# verify builtin functions, conditionals and such
+
+a = 5
+
+func(checka) {
+	if (a == 5) {
+		print("a == 5")
+	} else {
+		print("a != 5")
+	}
+}
+
+checka()
+
+print("Increment a...")
+a = a + 1
+checka()
+
+d = 0
+while (d < 20) {
+	print(d)
+	d = d + 1
+}
+

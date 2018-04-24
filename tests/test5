@@ -1,0 +1,10 @@
+# test5
+# solver test
+
+while (1) {
+	input = gets
+	if (input == "exit") {
+		exit
+	}
+	print(solve(input))
+}

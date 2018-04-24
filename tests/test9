@@ -1,0 +1,16 @@
+x = 9
+print(3x)
+print(2x + 5)
+print(x - 9x)
+print(5 + (3x))
+print((x - 4 * 5)2)
+y = 8
+# 2*x*y = 144
+print(x2y)
+print(2xy)
+print(2x*y)
+
+A = 5
+B = 9
+print("")
+print(2AB)
