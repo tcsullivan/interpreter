@@ -35,6 +35,7 @@
 #include "builtins.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #define IF_SIG    (uint32_t)-1
 #define WHILE_SIG (uint32_t)-2
@@ -56,6 +57,8 @@ int bn_while(instance *it);
 int bn_func(instance *it);
 int bn_solve(instance *it);
 int bn_array(instance *it);
+int bn_size(instance *it);
+int bn_append(instance *it);
 
 void iload_builtins(instance *it)
 {
@@ -65,6 +68,8 @@ void iload_builtins(instance *it)
 	inew_cfunc(it, "func", bn_func);
 	inew_cfunc(it, "solve", bn_solve);
 	inew_cfunc(it, "array", bn_array);
+	inew_cfunc(it, "size", bn_size);
+	inew_cfunc(it, "append", bn_append);
 }
 
 /**
@@ -199,5 +204,48 @@ int bn_array(instance *it)
 	array[0].value.p = i0;
 	a->array = size;
 	a->value.p = (uint32_t)array;
+	return 0;
+}
+
+int bn_size(instance *it)
+{
+	variable *a = igetarg(it, 0);
+	float f;
+	if (a->type == STRING)
+		f = strlen((char *)a->value.p);
+	else
+		f = a->array;
+	ipush(it, (uint32_t)make_varf(0, f));
+	return 0;
+}
+
+int bn_append(instance *it)
+{
+	variable *a = igetarg(it, 0);
+	variable *b = igetarg(it, 1);
+
+	if (a->type != STRING)
+		return 0;
+
+	if (b->type == NUMBER) {
+		int len = strlen((char *)a->value.p);
+		char *newstr = malloc(len + 2);
+		memcpy(newstr, (char *)a->value.p, len);
+		newstr[len] = b->value.f;
+		newstr[len + 1] = '\0';
+		free((void *)a->value.p);
+		a->value.p = (uint32_t)newstr;
+	} else if (b->type == STRING) {
+		int len1 = strlen((char *)a->value.p);
+		int len2 = strlen((char *)b->value.p);
+		char *newstr = malloc(len1 + len2);
+		memcpy(newstr, (char *)a->value.p, len1);
+		memcpy(newstr + len1, (char *)b->value.p, len2);
+		newstr[len1 + len2] = '\0';
+		free((void *)a->value.p);
+		a->value.p = (uint32_t)newstr;
+	}
+
+	ipush(it, (uint32_t)a);
 	return 0;
 }

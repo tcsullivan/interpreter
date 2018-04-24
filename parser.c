@@ -404,8 +404,10 @@ variable **iparse(instance *it, const char *s)
 		// variable or function
 		if (isalpha(s[offset])) {
 			size_t end = offset + 1;
-			while (isalnum(s[end]))
-				end++;
+			if (!isupper(s[offset])) {
+				while (isalnum(s[end]))
+					end++;
+			}
 			char *name = strnclone(s + offset, end - offset);
 			ops[ooffset++] = igetvar(it, name);
 			free(name);

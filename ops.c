@@ -82,7 +82,7 @@ const char *opnames[] = {
 	"+", "-", "<<", ">>",
 	"<=", "<", ">=", ">",
 	"==", "!=", "&", "^",
-	"|", "=" 
+	"|", "="
 };
 
 variable *igetop(const char *name, int *retlen)
@@ -102,8 +102,28 @@ variable *igetop(const char *name, int *retlen)
 
 OP_DEF(idx)
 {
-	if (a->array == 0)
-		return seterror(EBADPARAM);
+	if (a->array == 0) {
+		if (a->type != STRING)
+			return seterror(EBADPARAM);
+
+		// string index
+		int idx = b->value.f;
+		for (int i = 0; i <= idx; i++) {
+			if (((char *)a->value.p)[i] == '\0') {
+				return seterror(EBADPARAM);
+				/*// new buf
+				char *newbuf = malloc(idx + 2);
+				newbuf[idx + 1] = '\0';
+				memcpy(newbuf, (char *)a->value.p, i);
+				free((void *)a->value.p);
+				break;*/
+			}
+		}
+
+		(*r)->type = NUMBER;
+		(*r)->value.f = ((char *)a->value.p)[idx];
+		return 0;
+	}
 
 	extern void itryfree(variable *);
 	itryfree(*r);
