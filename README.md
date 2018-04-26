@@ -18,9 +18,8 @@ To use *interpreter* with your own device, you will need some malloc/free implem
 * whitespace is not always ignored
 
 ### some TODO items:  
-* fix all memory leaks
 * add better error messages
-* arrays?
+* better array support
 * for loops
 * variable scopes
 
