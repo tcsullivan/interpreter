@@ -34,20 +34,21 @@
 
 #include "builtins.h"
 
+#include <memory.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define IF_SIG    (uint32_t)-1
-#define WHILE_SIG (uint32_t)-2
-#define ELSE_SIG  (uint32_t)-3
-#define FUNC_SIG  (uint32_t)-4
+#define IF_SIG    (size_t)-1
+#define WHILE_SIG (size_t)-2
+#define ELSE_SIG  (size_t)-3
+#define FUNC_SIG  (size_t)-4
 
 variable bopen = {
-	0, CFUNC, 0, 0, {.p = (uint32_t)bracket_open}
+	0, CFUNC, 0, 0, {.p = (size_t)bracket_open}
 };
 
 variable bclose = {
-	0, CFUNC, 0, 0, {.p = (uint32_t)bracket_close}
+	0, CFUNC, 0, 0, {.p = (size_t)bracket_close}
 };
 
 int bn_if(instance *it);
@@ -102,7 +103,7 @@ int bracket_close(instance *it)
 int bn_if(instance *it)
 {
 	variable *cond = (variable *)ipop(it);
-	uint32_t result = cond->value.p;
+	size_t result = cond->value.p;
 
 	ipush(it, result);
 	ipush(it, IF_SIG);
@@ -114,10 +115,10 @@ int bn_if(instance *it)
 	return 0;
 }
 
-static uint32_t if_cond = 0;
+static size_t if_cond = 0;
 int bn_else(instance *it)
 {
-	uint32_t cond = if_cond;
+	size_t cond = if_cond;
 	if (cond != 0)
 		it->sindent = SKIP | it->indent;
 	ipush(it, ELSE_SIG);
@@ -135,12 +136,12 @@ int bn_else(instance *it)
  */
 int bn_end(instance *it)
 {
-	uint32_t sig = ipop(it);
+	size_t sig = ipop(it);
 	if (sig == IF_SIG) {
 		if_cond = ipop(it);
 	} else if (sig == WHILE_SIG) {
-		uint32_t lnidx = ipop(it);
-		if (lnidx != (uint32_t)-1)
+		size_t lnidx = ipop(it);
+		if (lnidx != (size_t)-1)
 			it->lnidx = lnidx - 1;
 	} else if (sig == CALL_SIG) {
 		it->lnidx = ipop(it);
@@ -152,11 +153,11 @@ int bn_end(instance *it)
 int bn_while(instance *it)
 {
 	variable *cond = (variable *)ipop(it);
-	uint32_t result = cond->value.p;
+	size_t result = cond->value.p;
 
 	if (result == 0) {
 		it->sindent = SKIP | it->indent;
-		ipush(it, (uint32_t)-1);
+		ipush(it, (size_t)-1);
 	} else {
 		ipush(it, it->lnidx);
 	}
@@ -182,7 +183,7 @@ int bn_solve(instance *it)
 	variable *s = igetarg(it, 0);
 	variable **ops = iparse(it, (const char *)s->value.p);
 	if (ops == 0) {
-		ipush(it, (uint32_t)make_varf(0, 0.0f));
+		ipush(it, (size_t)make_varf(0, 0.0f));
 		// return zero, don't let bad solves break the script
 		return 0;
 	}
@@ -190,7 +191,7 @@ int bn_solve(instance *it)
 	variable *a = isolve(it, ops, 0);
 	free(ops);
 
-	ipush(it, (uint32_t)a);
+	ipush(it, (size_t)a);
 	return 0;
 }
 
@@ -198,12 +199,12 @@ int bn_array(instance *it)
 {
 	variable *a = igetarg(it, 0);
 	int size = igetarg(it, 1)->value.f;
-	uint32_t i0 = a->value.p;
-	variable *array = calloc(size, sizeof(variable));
+	size_t i0 = a->value.p;
+	variable *array = (variable *)calloc(size, sizeof(variable));
 	array[0].type = a->type;
 	array[0].value.p = i0;
 	a->array = size;
-	a->value.p = (uint32_t)array;
+	a->value.p = (size_t)array;
 	return 0;
 }
 
@@ -215,7 +216,7 @@ int bn_size(instance *it)
 		f = strlen((char *)a->value.p);
 	else
 		f = a->array;
-	ipush(it, (uint32_t)make_varf(0, f));
+	ipush(it, (size_t)make_varf(0, f));
 	return 0;
 }
 
@@ -229,23 +230,23 @@ int bn_append(instance *it)
 
 	if (b->type == NUMBER) {
 		int len = strlen((char *)a->value.p);
-		char *newstr = malloc(len + 2);
+        char *newstr = (char *)malloc(len + 2);
 		memcpy(newstr, (char *)a->value.p, len);
 		newstr[len] = b->value.f;
 		newstr[len + 1] = '\0';
 		free((void *)a->value.p);
-		a->value.p = (uint32_t)newstr;
+		a->value.p = (size_t)newstr;
 	} else if (b->type == STRING) {
 		int len1 = strlen((char *)a->value.p);
 		int len2 = strlen((char *)b->value.p);
-		char *newstr = malloc(len1 + len2);
+		char *newstr = (char *)malloc(len1 + len2);
 		memcpy(newstr, (char *)a->value.p, len1);
 		memcpy(newstr + len1, (char *)b->value.p, len2);
 		newstr[len1 + len2] = '\0';
 		free((void *)a->value.p);
-		a->value.p = (uint32_t)newstr;
+		a->value.p = (size_t)newstr;
 	}
 
-	ipush(it, (uint32_t)a);
+	ipush(it, (size_t)a);
 	return 0;
 }

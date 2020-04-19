@@ -24,8 +24,8 @@
 
 #include "parser.h"
 
-#define SKIP_SIG (uint32_t)-5
-#define CALL_SIG (uint32_t)-6
+#define SKIP_SIG (size_t)-5
+#define CALL_SIG (size_t)-6
 
 // open bracket 'operator', for use in a compiled line
 extern variable bopen;

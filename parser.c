@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 /**
  * Limitations for an instance. TODO make dynamic (no limits).
@@ -61,7 +62,7 @@ instance *inewinstance(void)
 	instance *it = (instance *)malloc(sizeof(instance));
 	it->vars = (variable *)calloc(MAX_VARS, sizeof(variable));
 	it->names = (char **)calloc(MAX_VARS, sizeof(char *));
-	it->stack = (uint32_t *)malloc(MAX_STACK * sizeof(uint32_t));
+	it->stack = (size_t *)malloc(MAX_STACK * sizeof(size_t));
 	it->stidx = 0;
 	it->lines = (variable ***)calloc(MAX_LINES, sizeof(variable **));
 	it->lnidx = 0;
@@ -78,7 +79,7 @@ void idelinstance(instance *it)
 {
 	itryfree(it->ret);
 
-	for (uint32_t i = 0; i < MAX_LINES; i++) {
+	for (size_t i = 0; i < MAX_LINES; i++) {
 		if (it->lines[i] == 0)
 			continue;
 
@@ -87,7 +88,7 @@ void idelinstance(instance *it)
 	}
 	free(it->lines);
 
-	for (uint32_t i = 0; i < MAX_VARS; i++) {
+	for (size_t i = 0; i < MAX_VARS; i++) {
 		if (it->vars[i].type == STRING || it->vars[i].array > 0)
 			free((void *)it->vars[i].value.p);
 		free(it->names[i]);
@@ -104,7 +105,7 @@ void idelline(variable **ops)
 	for (int j = 0; j < 32; j++) {
 		variable *v = ops[j];
 		if (v != 0) {
-			if (((uint32_t)v & OP_MAGIC) == OP_MAGIC)
+			if (((size_t)v & OP_MAGIC) == OP_MAGIC)
 				continue;
 
 			if (v->type == FUNC || v->type == CFUNC)
@@ -120,22 +121,22 @@ void idelline(variable **ops)
 // stack operations
 //
 
-void ipush(instance *it, uint32_t v)
+void ipush(instance *it, size_t v)
 {
 	it->stack[it->stidx++] = v;
 }
 
-uint32_t ipop(instance *it)
+size_t ipop(instance *it)
 {
 	return it->stack[--it->stidx];
 }
 
-void ipopm(instance *it, uint32_t count)
+void ipopm(instance *it, size_t count)
 {
 	it->stidx -= count;
 }
 
-variable *igetarg(instance *it, uint32_t n)
+variable *igetarg(instance *it, size_t n)
 {
 	return (variable *)it->stack[it->stidx - n - 1];
 }
@@ -147,7 +148,7 @@ variable *igetarg(instance *it, uint32_t n)
 variable *igetvar(instance *it, const char *name)
 {
 	if (isalpha(name[0])) {
-		for (uint32_t i = 0; i < MAX_VARS; i++) {
+		for (size_t i = 0; i < MAX_VARS; i++) {
 			if (it->names[i] == 0) {
 				it->names[i] = strclone(name);
 				// default to 0 float
@@ -165,7 +166,7 @@ void inew_cfunc(instance *it, const char *name, func_t func)
 {
 	variable *v = igetvar(it, name);
 	v->type = CFUNC;
-	v->value.p = (uint32_t)func;
+	v->value.p = (size_t)func;
 }
 
 void inew_number(instance *it, const char *name, float f)
@@ -179,7 +180,7 @@ void inew_string(instance *it, const char *name, const char *s)
 {
 	variable *v = igetvar(it, name);
 	v->type = STRING;
-	v->value.p = (uint32_t)strclone(s);
+	v->value.p = (size_t)strclone(s);
 }
 
 int iaddline(instance *it, const char *s)
@@ -207,7 +208,7 @@ loop:
 	for (int i = 0; i < 32; i++) {
 		variable *v = it->lines[it->lnidx][i];
 		if (v != 0) {
-			if (((uint32_t)v & OP_MAGIC) == OP_MAGIC) {
+			if (((size_t)v & OP_MAGIC) == OP_MAGIC) {
 				copy[i] = v;
 				continue;
 			}
@@ -235,7 +236,7 @@ loop:
 			free((void *)ret->value.p);
 		ret->type = it->ret->type;
 		if (ret->type == STRING)
-			ret->value.p = (uint32_t)strclone((char *)it->ret->value.p);
+			ret->value.p = (size_t)strclone((char *)it->ret->value.p);
 		else
 			ret->value.p = it->ret->value.p;
 		itryfree(it->ret);
@@ -251,17 +252,17 @@ loop:
 	return 0;
 }
 
-variable *isolve_(instance *it, variable **ops, uint32_t count);
-variable *isolve(instance *it, variable **ops, uint32_t count)
+variable *isolve_(instance *it, variable **ops, size_t count);
+variable *isolve(instance *it, variable **ops, size_t count)
 {
 	if (count == 0)
 		for (count = 0; ops[count] != 0; count++);
 
-	for (uint32_t i = 0; i < count; i++) {
-		if (((uint32_t)ops[i] & OP_MAGIC) == OP_MAGIC) {
-			uint32_t count_ = (uint32_t)ops[i] & 0xFF;
+	for (size_t i = 0; i < count; i++) {
+		if (((size_t)ops[i] & OP_MAGIC) == OP_MAGIC) {
+			size_t count_ = (size_t)ops[i] & 0xFF;
 			ops[i] = isolve(it, ops + i + 1, count_);
-			for (uint32_t j = 1; j <= count_; j++)
+			for (size_t j = 1; j <= count_; j++)
 				ops[i + j] = 0;
 		}
 	}
@@ -269,15 +270,15 @@ variable *isolve(instance *it, variable **ops, uint32_t count)
 	return isolve_(it, ops, count);
 }
 
-variable *isolve_(instance *it, variable **ops, uint32_t count)
+variable *isolve_(instance *it, variable **ops, size_t count)
 {
 	// first, look for functions
-	for (uint32_t i = 0; i < count; i++) {
+	for (size_t i = 0; i < count; i++) {
 		if (ops[i] == 0)
 			continue;
 		if (ops[i]->type == CFUNC || ops[i]->type == FUNC) {
-			uint32_t nargs = (uint32_t)ops[i + 1] - 1;
-			uint32_t start = i;
+			size_t nargs = (size_t)ops[i + 1] - 1;
+			size_t start = i;
 			i++;
 			if (nargs > 0)
 				i++;
@@ -285,7 +286,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 			for (j = nargs; j > 0 && i < count; i++) {
 				if (ops[i] != 0) {
 					if (ops[start]->type == CFUNC) {
-						it->stack[it->stidx + j - 1] = (uint32_t)ops[i];
+						it->stack[it->stidx + j - 1] = (size_t)ops[i];
 					} else {
 						char namebuf[6];
 						snprintf(namebuf, 6, "arg%u",
@@ -306,7 +307,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 				func_t func = (func_t)ops[start]->value.p;
 				it->stidx += nargs;
 
-				uint32_t sidx = it->stidx;
+				size_t sidx = it->stidx;
 				int ret = 0;
 				if (!(it->sindent & SKIP) || (func == bracket_open ||
 					func == bracket_close))
@@ -326,7 +327,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 			}
 
 			ops[start + 1] = 0;
-			for (uint32_t j = start + 2; j < i; j++) {
+			for (size_t j = start + 2; j < i; j++) {
 				itryfree(ops[j]);
 				ops[j] = 0;
 			}
@@ -334,23 +335,23 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 	}
 
 	// next, operators
-	for (uint32_t j = 0; j < OPS_COUNT; j += 2) {
-		for (uint32_t i = 0; i < count; i++) {
+	for (size_t j = 0; j < OPS_COUNT; j += 2) {
+		for (size_t i = 0; i < count; i++) {
 			if (ops[i] == 0)
 				continue;
 			if (ops[i]->type == OPERATOR) {
-				if (ops[i]->value.p != (uint32_t)opvars[j].value.p) {
-					if (ops[i]->value.p != (uint32_t)opvars[j + 1].value.p)
+				if (ops[i]->value.p != (size_t)opvars[j].value.p) {
+					if (ops[i]->value.p != (size_t)opvars[j + 1].value.p)
 						continue;
 				}
 
 				opfunc_t func = (opfunc_t)ops[i]->value.p;
-				uint32_t aidx = i - 1;
+				size_t aidx = i - 1;
 				while (ops[aidx] == 0 && aidx != 0)
 					aidx--;
 				if (ops[aidx] == 0)
 					return 0;
-				uint32_t bidx = i + 1;
+				size_t bidx = i + 1;
 				while (ops[bidx] == 0 && ++bidx < count);
 				if (bidx >= count)
 					return 0;
@@ -373,7 +374,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 
 	// implicit multiply
 	/*if (ops[0] != 0 && ops[0]->type == NUMBER) {
-		for (uint32_t i = 1; i < count; i++) {
+		for (size_t i = 1; i < count; i++) {
 			if (ops[i] != 0 && ops[i]->type == NUMBER)
 				ops[0]->value.f *= ops[i]->value.f;
 		}
@@ -385,7 +386,7 @@ variable *isolve_(instance *it, variable **ops, uint32_t count)
 variable **iparse(instance *it, const char *s)
 {
 	variable **ops = 0;
-	uint32_t ooffset = 0;
+	size_t ooffset = 0;
 	int32_t boffset = 1;
 	size_t offset = 0;
 	uint8_t prevNum = 0;
@@ -414,23 +415,23 @@ variable **iparse(instance *it, const char *s)
 			while (isblank(s[end]))
 				end++;
 			if (s[end] == '(') {
-				uint32_t argidx = ooffset;
-				uint32_t argcount = 1;
+				size_t argidx = ooffset;
+				size_t argcount = 1;
 				ooffset++;
 				end++;
-				uint32_t last = end;
+				size_t last = end;
 				for (int c = 0; c >= 0; end++) {
 					if (s[end] == '(')
 						c++;
 					if (c == 0 && last != end && (s[end] == ',' || s[end] == ')' || s[end] == '\0')) {
 						argcount++;
 						char *arg = strnclone(s + last, end - last);
-						uint32_t parenidx = ooffset;
+						size_t parenidx = ooffset;
 						ooffset++;
 						variable **moreops = iparse(it, arg);
-						uint32_t count = 0;
+						size_t count = 0;
 						if (moreops != 0) {
-							for (uint32_t i = 0; moreops[i] != 0; count++, i++)
+							for (size_t i = 0; moreops[i] != 0; count++, i++)
 								ops[ooffset++] = moreops[i];
 							free(moreops);
 						}
@@ -478,12 +479,12 @@ variable **iparse(instance *it, const char *s)
 			}
 			i++;
 			char *word = strnclone(s + offset + 1, i - offset - 2);
-			uint32_t parenidx = ooffset;
+			size_t parenidx = ooffset;
 			ooffset++;
 			variable **moreops = iparse(it, word);
-			uint32_t count = 0;
+			size_t count = 0;
 			if (moreops != 0) {
-				for (uint32_t i = 0; moreops[i] != 0; count++, i++)
+				for (size_t i = 0; moreops[i] != 0; count++, i++)
 					ops[ooffset++] = moreops[i];
 				free(moreops);
 			}
@@ -492,8 +493,8 @@ variable **iparse(instance *it, const char *s)
 			offset = i;
 			prevNum += 2;
 		} else if (s[offset] == '[') {
-			/*uint32_t i = offset + 1;
-			uint32_t j = i;
+			/*size_t i = offset + 1;
+			size_t j = i;
 			while (s[offset] != ']') {
 				if (s[offset] == ';') {
 

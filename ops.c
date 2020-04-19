@@ -36,7 +36,7 @@
 #include <stdlib.h>
 
 #define OP_DEF(o) int op_##o(variable **r, variable *a, variable *b)
-#define OP_VAR(o) {0, OPERATOR, 0, 0, {.p = (uint32_t)op_##o}}
+#define OP_VAR(o) {0, OPERATOR, 0, 0, {.p = (size_t)op_##o}}
 #define OP_NONE   {0, OPERATOR, 0, 0, {.p = 0x0BADCAFE}}
 
 OP_DEF(idx);
@@ -87,7 +87,7 @@ const char *opnames[] = {
 
 variable *igetop(const char *name, int *retlen)
 {
-	for (uint32_t i = 0; i < OPS_COUNT; i++) {
+	for (size_t i = 0; i < OPS_COUNT; i++) {
 		if (opnames[i] == 0)
 			continue;
 		int len = strlen(opnames[i]);
@@ -130,9 +130,9 @@ OP_DEF(idx)
 
 	int idx = b->value.f;
 	if (idx >= a->array) {
-		variable *newarray = calloc(idx + 1, sizeof(variable));
+		variable *newarray = (variable *)calloc(idx + 1, sizeof(variable));
 		void *old = (void *)a->value.p;
-		a->value.p = (uint32_t)memcpy(newarray, (variable *)a->value.p,
+		a->value.p = (size_t)memcpy(newarray, (variable *)a->value.p,
 			a->array * sizeof(variable));
 		free(old);
 		a->array = idx + 1;
@@ -285,9 +285,9 @@ OP_DEF(set)
 	} else if (b->type == STRING) {
 		a->type = STRING;
 		free((void *)a->value.p);
-		a->value.p = (uint32_t)strclone((char *)b->value.p);
+		a->value.p = (size_t)strclone((char *)b->value.p);
 		(*r)->type = STRING;
-		(*r)->value.p = (uint32_t)strclone((char *)a->value.p);
+		(*r)->value.p = (size_t)strclone((char *)a->value.p);
 	} else {
 		return seterror(EBADPARAM);
 	}

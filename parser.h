@@ -32,10 +32,10 @@
 typedef struct {
 	variable *vars;    /**< An array of defined variables */
 	char **names;      /**< An array of names for the variables */
-	uint32_t *stack;   /**< The instance's stack */
-	uint32_t stidx;    /**< The instance's position in the stack */
+	size_t *stack;   /**< The instance's stack */
+	size_t stidx;    /**< The instance's position in the stack */
 	variable ***lines; /**< Compiled data for each line of script */
-	uint32_t lnidx;    /**< Position in script/line being run */
+	size_t lnidx;    /**< Position in script/line being run */
 	variable *ret;     /**< Pointer to the last returned variable */
 	uint8_t indent;    /**< Current indent/scope of the instance */
 	uint8_t sindent;   /**< Indent of scope to skip, for false conditionals */
@@ -99,14 +99,14 @@ void inew_number(instance *it, const char *name, float f);
  * @param it the current instance
  * @return the popped value
  */
-uint32_t ipop(instance *it);
+size_t ipop(instance *it);
 
 /**
  * Pushes a word to the instance's stack.
  * @param it the current instance
  * @param v the word to push
  */
-void ipush(instance *it, uint32_t v);
+void ipush(instance *it, size_t v);
 
 /**
  * Gets the nth argument passed to the current C function.
@@ -115,7 +115,7 @@ void ipush(instance *it, uint32_t v);
  * @param n the index of the argument, zero-based
  * @return the argument's variable
  */
-variable *igetarg(instance *it, uint32_t n);
+variable *igetarg(instance *it, size_t n);
 
 /**
  * Parses the given line, returning compiled data to run.
@@ -134,6 +134,6 @@ variable **iparse(instance *it, const char *s);
  * @param count the size of the ops array, zero if unknown
  * @return the variable returned by the line, null if none
  */
-variable *isolve(instance *it, variable **ops, uint32_t count);
+variable *isolve(instance *it, variable **ops, size_t count);
 
 #endif // PARSER_H_

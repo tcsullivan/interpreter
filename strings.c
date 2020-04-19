@@ -21,6 +21,7 @@
 #include "string.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 char *strnclone(const char *s, size_t c)
 {
@@ -36,7 +37,7 @@ char *strclone(const char *s)
 
 char *fixstring(const char *s)
 {
-	char *n = malloc(strlen(s) + 1 - 2);
+	char *n = (char *)malloc(strlen(s) + 1 - 2);
 	int j = 0;
 	for (int i = 1; s[i] != '\"'; i++, j++) {
 		if (s[i] == '\\') {

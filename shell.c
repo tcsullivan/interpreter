@@ -46,7 +46,7 @@ int gets(instance *it)
 	*strchr(line, '\n') = '\0';
 	variable *v = make_vars(0, line);
 	free(line);
-	ipush(it, (uint32_t)v);
+	ipush(it, (size_t)v);
 	return 0;
 }
 

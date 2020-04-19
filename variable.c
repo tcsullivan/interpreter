@@ -43,7 +43,7 @@ variable *make_vars(variable *v, const char *s)
 		v->tmp = 1;
 	}
 	v->type = STRING;
-	v->value.p = (uint32_t)strclone(s);
+	v->value.p = (size_t)strclone(s);
 	return v;
 }
 
@@ -53,7 +53,7 @@ variable *varclone(variable *n)
 	v->tmp = 1;
 	v->type = n->type;
 	if (n->type == STRING)
-		v->value.p = (uint32_t)strclone((char *)n->value.p);
+		v->value.p = (size_t)strclone((char *)n->value.p);
 	else
 		v->value.p = n->value.p;
 	return v;

@@ -23,6 +23,7 @@
 #define VARIABLE_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * Data for a script variable.
@@ -31,10 +32,10 @@ typedef struct {
 	uint8_t tmp    :1; /**< If zero, variable cannot be free'd */
 	uint8_t type   :3; /**< The variable's type */
 	uint8_t unused :4; /**< Unused... */
-	uint8_t array;     /**< ">0?" -> array w/ this size */
+	uint8_t array;     /**< Variable is array if >0, this defines array size */
 	union {
 		float f;
-		uint32_t p;
+		size_t p;
 	} value; /**< The variable's value, either float or a pointer */
 } variable;
 
@@ -80,3 +81,4 @@ variable *make_num(const char *text);
 variable *varclone(variable *n);
 
 #endif // VARIABLE_H_
+

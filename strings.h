@@ -21,11 +21,8 @@
 #ifndef STRING_H_
 #define STRING_H_
 
+#include <stddef.h>
 #include <string.h>
-
-#ifndef size_t
-typedef unsigned int size_t;
-#endif
 
 /**
  * Clones a string of a given size into a malloc'd buffer.
